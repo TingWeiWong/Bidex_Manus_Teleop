@@ -12,6 +12,13 @@ The code is similar to the released [C++ SDK by Manus](https://docs.manus-meta.c
 
 This is tested on our [Quantum Mocap Metagloves](https://docs.manus-meta.com/2.4.0/Products/Quantum%20Mocap%20Metagloves/) on SDK 2.4 but should work on other Manus gloves.
 
+# VirtualBox Setup Windows10
+Network setting: NAT
+VirtualBox Windows ip: 10.0.2.15
+
+Inside VirtualBox, type `arp -a` to find host ip. 
+Inside Ubuntu Host, type `sudo tcpdump`
+
 # Manus SDK Setup
 This sends the useful Manus data from the SDK to Python/ROS2 nodes, specifically `RawSkeletonInfo` is the fingertip data from MANUS and `Ergonomics` data is the approximate human skeleton joint angle data estimated by MANUS.
 
