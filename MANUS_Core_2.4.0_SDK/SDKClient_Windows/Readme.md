@@ -21,6 +21,7 @@ For a full guide on how to get started, please refer to the guide on our Knowled
 
 1. Go to `Network Settings` -> `Adapter 1` -> `Attached to`.  
 2. Select `Bridged Adapter` and connect it to the Ethernet of your host PC (e.g., `enp5s0`).
+3. Also set network inbound/outbound of 8000 port to allow all connections.
 
 ### Missing Files from .gitignore
 
