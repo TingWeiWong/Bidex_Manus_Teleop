@@ -1,7 +1,6 @@
 # MANUS SDK Client - Windows
-
-The MANUS SDK Client is an example client that demonstrates most of the functionality of the MANUS SDK. It handles setting up a connection to the gloves (either directly or via a MANUS Core instance) and implements all major features available in the MANUS SDK.  
-For a full guide on how to get started, please refer to the guide on our Knowledge Center: [https://docs.manus-meta.com/latest/Plugins/SDK/Windows/SDK%20Client/](https://docs.manus-meta.com/latest/Plugins/SDK/Windows/SDK%20Client/)
+Some essential source and header files are ignored (e.g., `ManusSDK`, `ClientLogging.hpp`, etc.).  
+You will need to download them manually from ManusCore.
 
 ## VirtualBox Setup (Ubuntu Computer as Host)
 
@@ -22,8 +21,3 @@ For a full guide on how to get started, please refer to the guide on our Knowled
 1. Go to `Network Settings` -> `Adapter 1` -> `Attached to`.  
 2. Select `Bridged Adapter` and connect it to the Ethernet of your host PC (e.g., `enp5s0`).
 3. Also set network inbound/outbound of 8000 port to allow all connections.
-
-### Missing Files from .gitignore
-
-Some essential source and header files are ignored (e.g., `ManusSDK`, `ClientLogging.hpp`, etc.).  
-You will need to download them manually from ManusCore.
