@@ -26,3 +26,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# object files
+*.d
+*.o
+*.out

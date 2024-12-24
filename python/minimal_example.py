@@ -8,14 +8,15 @@ Keep in mind this data runs VERY fast, I would not recommend directly setting ro
 '''
 
 left_glove_sn = "60f3738b"
-right_glove_sn = "8569617b"
+right_glove_sn = "6bb82ce1"
 
 context = zmq.Context()
 #Socket to talk to Manus SDK
 print("Connecting to SDK")
 socket = context.socket(zmq.PULL)
 socket.setsockopt(zmq.CONFLATE, True)     
-socket.connect("tcp://localhost:8000")
+socket.connect("tcp://192.168.1.97:8000")
+print("Connection succeed")
 
 '''
 This is ordered from Thumb to pinky, palm out to fingertip. 
@@ -35,11 +36,14 @@ def parse_full_skeleton(data):
         print("Serial Number not found: " + str(data[0]))
 while True:
     #wait for message
+    print("Inside while loop")
     message = socket.recv()
     #receive the message from the socket
+    # print("message received: ", message)
     message = message.decode('utf-8')
-    #print("Received reply %s" % (message))
-    data = message.split(",")   
+    print("Received reply %s" % (message))
+    data = message.split(",")
+    print("data: ", data)  
     if len(data) == 40:
         print("Left Glove Joint-level Ergonomics Data:")
         print(list(map(float,data[0:20])))
