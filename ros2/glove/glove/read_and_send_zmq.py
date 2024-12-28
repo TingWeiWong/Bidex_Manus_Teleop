@@ -10,7 +10,9 @@ This reads from websockets from Manus SDK and republishes to each glove topic
 
 The joint level data is what Manus estimates your skeleton as in the order of thumb to pinky and MCP side, MCP forward, PIP, DIP.
 
-The full skeleton is the xyz quaternion of every single 
+The full skeleton is the xyz quaternion of every single joint in the hand estimated by Manus.  The short skeleton is just the minimum data required for IK, Tip and DIP locations.
+
+Note, currently if you are using Windows, there is a different joint ordering than with Linux.  In Windows it is thumb to pinky in finger order, but on Linux it jumps around. Please see "short_idx" for details.  
 '''
 
 IP_ADDRESS = "tcp://localhost:8000"
