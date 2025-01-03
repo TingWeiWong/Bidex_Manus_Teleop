@@ -31,3 +31,6 @@ MANIFEST
 *.d
 *.o
 *.out
+
+log/
+install/
