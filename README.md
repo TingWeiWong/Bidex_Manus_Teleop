@@ -61,6 +61,7 @@ Now to run our version of the MANUS SDK:
         <img width="250" src="./readme_media/windows_instructions.PNG">
         <img width="265" src="./readme_media/ubuntu_instructions.png"> 
     </p>
+- Note currently Windows has a different joint ordering than Linux, please see `read_and_send_zmq.py` for details on how to switch between.
 
 Now to run the SDK:
 
