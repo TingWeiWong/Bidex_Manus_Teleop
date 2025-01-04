@@ -6,15 +6,25 @@
 #include <thread>
 #include "ClientPlatformSpecific.hpp"
 
-#define GO_TO_DISPLAY(p_Key,p_Function) if (GetKeyDown(p_Key)) { ClearConsole();\
-		m_CurrentInteraction = std::bind(&SDKClient::p_Function, this); return ClientReturnCode::ClientReturnCode_Success;}
+#define GO_TO_DISPLAY(p_Key, p_Function)                                \
+	if (GetKeyDown(p_Key))                                              \
+	{                                                                   \
+		ClearConsole();                                                 \
+		m_CurrentInteraction = std::bind(&SDKClient::p_Function, this); \
+		return ClientReturnCode::ClientReturnCode_Success;              \
+	}
 
-#define GO_TO_MENU_IF_REQUESTED() if (GetKeyDown('Q')) { ClearConsole();\
-		m_CurrentInteraction = nullptr; return ClientReturnCode::ClientReturnCode_Success;}
+#define GO_TO_MENU_IF_REQUESTED()                          \
+	if (GetKeyDown('Q'))                                   \
+	{                                                      \
+		ClearConsole();                                    \
+		m_CurrentInteraction = nullptr;                    \
+		return ClientReturnCode::ClientReturnCode_Success; \
+	}
 
 using ManusSDK::ClientLog;
 
-SDKClient* SDKClient::s_Instance = nullptr;
+SDKClient *SDKClient::s_Instance = nullptr;
 
 SDKClient::SDKClient()
 {
@@ -48,23 +58,26 @@ ClientReturnCode SDKClient::Initialize()
 		return ClientReturnCode::ClientReturnCode_FailedToInitialize;
 	}
 
-	//ZMQ
+	// ZMQ
 	ctx = zmq::context_t(); // Initialize context
+	ctx_ergo = zmq::context_t();
 	sock = zmq::socket_t(ctx, zmq::socket_type::push); // Initialize socket
+	sock_ergo = zmq::socket_t(ctx_ergo, zmq::socket_type::push);
 	sock.bind("tcp://*:8000");
-	//char char_buf_3[4096] = { 0 };
-	//char* pos3 = char_buf_3;
-	//float x = 3.0f;
-	//int t_leng = sprintf(pos3, "%.3f",x);
-	//int n = 3; // Number of characters to copy
-	//char result[4]; // +1 for the null terminator
-	//strncpy(result, char_buf_3, n);
-	//result[n] = '\0'; // Null-terminate the result
-	//while (1 == 1) {  //TEST!
+	sock_ergo.bind("tcp://*:8001");
+	// char char_buf_3[4096] = { 0 };
+	// char* pos3 = char_buf_3;
+	// float x = 3.0f;
+	// int t_leng = sprintf(pos3, "%.3f",x);
+	// int n = 3; // Number of characters to copy
+	// char result[4]; // +1 for the null terminator
+	// strncpy(result, char_buf_3, n);
+	// result[n] = '\0'; // Null-terminate the result
+	// while (1 == 1) {  //TEST!
 	//	sock.send(zmq::str_buffer(result), zmq::send_flags::dontwait);
 	//	ClientLog::error("Hello");
-	//}
-	//ZMQ
+	// }
+	// ZMQ
 	return ClientReturnCode::ClientReturnCode_Success;
 }
 
@@ -99,43 +112,65 @@ ClientReturnCode SDKClient::Run()
 		{
 			t_Result = LookingForHosts();
 			if (t_Result != ClientReturnCode::ClientReturnCode_Success &&
-				t_Result != ClientReturnCode::ClientReturnCode_FailedToFindHosts) {
+				t_Result != ClientReturnCode::ClientReturnCode_FailedToFindHosts)
+			{
 				return t_Result;
 			}
-		} break;
+		}
+		break;
 		case ClientState::ClientState_NoHostsFound:
 		{
 			t_Result = NoHostsFound();
-			if (t_Result != ClientReturnCode::ClientReturnCode_Success) { return t_Result; }
-		} break;
+			if (t_Result != ClientReturnCode::ClientReturnCode_Success)
+			{
+				return t_Result;
+			}
+		}
+		break;
 		case ClientState::ClientState_PickingHost:
 		{
 			t_Result = PickingHost();
-			if (t_Result != ClientReturnCode::ClientReturnCode_Success) { return t_Result; }
-		} break;
+			if (t_Result != ClientReturnCode::ClientReturnCode_Success)
+			{
+				return t_Result;
+			}
+		}
+		break;
 		case ClientState::ClientState_ConnectingToCore:
 		{
 			t_Result = ConnectingToCore();
-			if (t_Result != ClientReturnCode::ClientReturnCode_Success) { return t_Result; }
-		} break;
+			if (t_Result != ClientReturnCode::ClientReturnCode_Success)
+			{
+				return t_Result;
+			}
+		}
+		break;
 		case ClientState::ClientState_DisplayingData:
 		{
 			UpdateBeforeDisplayingData();
 			if (m_CurrentInteraction == nullptr)
 			{
-				t_Result = DisplayingData();
+				// t_Result = DisplayingData();
 			}
 			else
 			{
 				t_Result = m_CurrentInteraction();
 			}
-			if (t_Result != ClientReturnCode::ClientReturnCode_Success) { return t_Result; }
-		} break;
+			if (t_Result != ClientReturnCode::ClientReturnCode_Success)
+			{
+				return t_Result;
+			}
+		}
+		break;
 		case ClientState::ClientState_Disconnected:
 		{
 			t_Result = DisconnectedFromCore();
-			if (t_Result != ClientReturnCode::ClientReturnCode_Success) { return t_Result; }
-		}break;
+			if (t_Result != ClientReturnCode::ClientReturnCode_Success)
+			{
+				return t_Result;
+			}
+		}
+		break;
 		default:
 		{
 			ClientLog::error("Encountered the unrecognized state {}.", static_cast<int>(m_State));
@@ -150,9 +185,9 @@ ClientReturnCode SDKClient::Run()
 			m_RequestedExit = true;
 		}
 
-		if (m_ConsoleClearTickCount == 0) //prevents text from intersecting.
+		if (m_ConsoleClearTickCount == 0) // prevents text from intersecting.
 		{
-			//Logging
+			// Logging
 			PrintLogs();
 		}
 
@@ -186,11 +221,11 @@ ClientReturnCode SDKClient::ShutDown()
 /// @brief Gets called when the client is connects to manus core
 /// Using this callback is optional.
 /// In this sample we use this callback to change the client's state and switch to another screen
-void SDKClient::OnConnectedCallback(const ManusHost* const p_Host)
+void SDKClient::OnConnectedCallback(const ManusHost *const p_Host)
 {
 	ClientLog::print("Connected to manus core.");
 
-	//No need to initialize these as they get filled in the CoreSdk_GetVersionsAndCheckCompatibility
+	// No need to initialize these as they get filled in the CoreSdk_GetVersionsAndCheckCompatibility
 	ManusVersion t_SdkVersion;
 	ManusVersion t_CoreVersion;
 	bool t_IsCompatible;
@@ -246,7 +281,7 @@ void SDKClient::OnConnectedCallback(const ManusHost* const p_Host)
 
 /// @brief Gets called when the client disconnects from manus core.
 /// This callback is optional and in the sample changes the client's state.
-void SDKClient::OnDisconnectedCallback(const ManusHost* const p_Host)
+void SDKClient::OnDisconnectedCallback(const ManusHost *const p_Host)
 {
 	ClientLog::print("Disconnected from manus core.");
 	s_Instance->m_TimeSinceLastDisconnect = std::chrono::high_resolution_clock::now();
@@ -255,9 +290,10 @@ void SDKClient::OnDisconnectedCallback(const ManusHost* const p_Host)
 	s_Instance->m_State = ClientState::ClientState_Disconnected;
 }
 
-void SDKClient::OnLogCallback(LogSeverity p_Severity, const char* const p_Log, uint32_t p_Length)
+void SDKClient::OnLogCallback(LogSeverity p_Severity, const char *const p_Log, uint32_t p_Length)
 {
-	if (!s_Instance)return;
+	if (!s_Instance)
+		return;
 
 	auto t_Log = new SDKLog();
 	t_Log->severity = p_Severity;
@@ -269,11 +305,11 @@ void SDKClient::OnLogCallback(LogSeverity p_Severity, const char* const p_Log, u
 
 /// @brief This gets called when the client is connected to manus core
 /// @param p_SkeletonStreamInfo contains the meta data on how much data regarding the skeleton we need to get from the SDK.
-void SDKClient::OnSkeletonStreamCallback(const SkeletonStreamInfo* const p_SkeletonStreamInfo)
+void SDKClient::OnSkeletonStreamCallback(const SkeletonStreamInfo *const p_SkeletonStreamInfo)
 {
 	if (s_Instance)
 	{
-		ClientSkeletonCollection* t_NxtClientSkeleton = new ClientSkeletonCollection();
+		ClientSkeletonCollection *t_NxtClientSkeleton = new ClientSkeletonCollection();
 		t_NxtClientSkeleton->skeletons.resize(p_SkeletonStreamInfo->skeletonsCount);
 
 		for (uint32_t i = 0; i < p_SkeletonStreamInfo->skeletonsCount; i++)
@@ -284,19 +320,20 @@ void SDKClient::OnSkeletonStreamCallback(const SkeletonStreamInfo* const p_Skele
 			CoreSdk_GetSkeletonData(i, t_NxtClientSkeleton->skeletons[i].nodes.data(), t_NxtClientSkeleton->skeletons[i].info.nodesCount);
 		}
 		s_Instance->m_SkeletonMutex.lock();
-		if (s_Instance->m_NextSkeleton != nullptr) delete s_Instance->m_NextSkeleton;
+		if (s_Instance->m_NextSkeleton != nullptr)
+			delete s_Instance->m_NextSkeleton;
 		s_Instance->m_NextSkeleton = t_NxtClientSkeleton;
 		s_Instance->m_SkeletonMutex.unlock();
 	}
 }
 
-/// @brief This gets called when the client is connected to manus core. It sends the skeleton data coming from the estimation system, before the retargeting to the client skeleton model. 
+/// @brief This gets called when the client is connected to manus core. It sends the skeleton data coming from the estimation system, before the retargeting to the client skeleton model.
 /// @param p_RawSkeletonStreamInfo contains the meta data on how much data regarding the raw skeleton we need to get from the SDK.
-void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_RawSkeletonStreamInfo)
+void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo *const p_RawSkeletonStreamInfo)
 {
 	if (s_Instance)
 	{
-		ClientRawSkeletonCollection* t_NxtClientRawSkeleton = new ClientRawSkeletonCollection();
+		ClientRawSkeletonCollection *t_NxtClientRawSkeleton = new ClientRawSkeletonCollection();
 		t_NxtClientRawSkeleton->skeletons.resize(p_RawSkeletonStreamInfo->skeletonsCount);
 
 		for (uint32_t i = 0; i < p_RawSkeletonStreamInfo->skeletonsCount; i++)
@@ -307,24 +344,29 @@ void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_Ra
 			CoreSdk_GetRawSkeletonData(i, t_NxtClientRawSkeleton->skeletons[i].nodes.data(), t_NxtClientRawSkeleton->skeletons[i].info.nodesCount);
 		}
 		s_Instance->m_RawSkeletonMutex.lock();
-		if (s_Instance->m_NextRawSkeleton != nullptr) delete s_Instance->m_NextRawSkeleton;
+		if (s_Instance->m_NextRawSkeleton != nullptr)
+			delete s_Instance->m_NextRawSkeleton;
 		s_Instance->m_NextRawSkeleton = t_NxtClientRawSkeleton;
 
-		//ZMQ
-		//printf("%.3f", s_Instance->m_NextRawSkeleton->skeletons[0].nodes[3].transform.scale.x); //This scale is 1.0 for me everywhere.
-		try {
-			char char_buf_3[4096] = { 0 };
-			char* pos3 = char_buf_3;
+		// ZMQ
+		// printf("%.3f", s_Instance->m_NextRawSkeleton->skeletons[0].nodes[3].transform.scale.x); //This scale is 1.0 for me everywhere.
+		try
+		{
+			char char_buf_3[4096] = {0};
+			char *pos3 = char_buf_3;
 			int leng3 = 0;
-			uint8_t part_ids[] = { 3, 4, 8, 9, 13, 14, 18, 19, 23, 24 };
-			for (unsigned int j = 0; j < p_RawSkeletonStreamInfo->skeletonsCount; j++) {
+			uint8_t part_ids[] = {3, 4, 8, 9, 13, 14, 18, 19, 23, 24};
+			for (unsigned int j = 0; j < p_RawSkeletonStreamInfo->skeletonsCount; j++)
+			{
 				int t_leng = sprintf(pos3, "%x,", s_Instance->m_NextRawSkeleton->skeletons[j].info.gloveId);
 				pos3 = pos3 + t_leng;
 				leng3 = leng3 + t_leng;
-				bool full = true;			 //If true, send all the data.  The false can speed things up if you need.
-				//If you set this to false then you send just the data needed for dex-cap style retargeting, the xyz of the last two joints of each finger.
-				if (full) {
-					for (unsigned int i = 0; i < int(s_Instance->m_NextRawSkeleton->skeletons[0].info.nodesCount); i++) {
+				bool full = true; // If true, send all the data.  The false can speed things up if you need.
+				// If you set this to false then you send just the data needed for dex-cap style retargeting, the xyz of the last two joints of each finger.
+				if (full)
+				{
+					for (unsigned int i = 0; i < int(s_Instance->m_NextRawSkeleton->skeletons[0].info.nodesCount); i++)
+					{
 						ManusVec3 position_glove = s_Instance->m_NextRawSkeleton->skeletons[j].nodes[i].transform.position;
 						ManusQuaternion rotation_glove = s_Instance->m_NextRawSkeleton->skeletons[j].nodes[i].transform.rotation;
 						int t_leng = sprintf(pos3, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,", position_glove.x, position_glove.y, position_glove.z, rotation_glove.x, rotation_glove.y, rotation_glove.z, rotation_glove.w);
@@ -332,8 +374,10 @@ void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_Ra
 						leng3 = leng3 + t_leng;
 					}
 				}
-				else {
-					for (unsigned int i = 0; i < 10; i++) {
+				else
+				{
+					for (unsigned int i = 0; i < 10; i++)
+					{
 						int node_index = part_ids[i];
 						ManusVec3 position_glove = s_Instance->m_NextRawSkeleton->skeletons[j].nodes[node_index].transform.position;
 						int t_leng = sprintf(pos3, "%.3f,%.3f,%.3f,", position_glove.x, position_glove.y, position_glove.z);
@@ -343,10 +387,13 @@ void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_Ra
 				}
 			}
 			leng3 += -1;
+			// printf("%d, %s\r", leng3, char_buf_3);
+			std::cout << leng3 << ", " << std::string(char_buf_3, 10) << "\r";
 			s_Instance->sock.send(zmq::buffer(char_buf_3, leng3), zmq::send_flags::dontwait);
-			//ZMQ
+			// ZMQ
 		}
-		catch (...) {
+		catch (...)
+		{
 			printf("Send Failed");
 		}
 		s_Instance->m_RawSkeletonMutex.unlock();
@@ -355,11 +402,11 @@ void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_Ra
 
 /// @brief This gets called when receiving tracker information from core
 /// @param p_TrackerStreamInfo contains the meta data on how much data regarding the trackers we need to get from the SDK.
-void SDKClient::OnTrackerStreamCallback(const TrackerStreamInfo* const p_TrackerStreamInfo)
+void SDKClient::OnTrackerStreamCallback(const TrackerStreamInfo *const p_TrackerStreamInfo)
 {
 	if (s_Instance)
 	{
-		TrackerDataCollection* t_TrackerData = new TrackerDataCollection();
+		TrackerDataCollection *t_TrackerData = new TrackerDataCollection();
 
 		t_TrackerData->trackerData.resize(p_TrackerStreamInfo->trackerCount);
 
@@ -368,7 +415,8 @@ void SDKClient::OnTrackerStreamCallback(const TrackerStreamInfo* const p_Tracker
 			CoreSdk_GetTrackerData(i, &t_TrackerData->trackerData[i]);
 		}
 		s_Instance->m_TrackerMutex.lock();
-		if (s_Instance->m_NextTrackerData != nullptr) delete s_Instance->m_NextTrackerData;
+		if (s_Instance->m_NextTrackerData != nullptr)
+			delete s_Instance->m_NextTrackerData;
 		s_Instance->m_NextTrackerData = t_TrackerData;
 		s_Instance->m_TrackerMutex.unlock();
 	}
@@ -380,7 +428,7 @@ void SDKClient::OnTrackerStreamCallback(const TrackerStreamInfo* const p_Tracker
 /// does not always contain ALL of the devices, because some may not have had new data since
 /// the last time the gesture data was sent.
 /// @param p_GestureStream contains the basic info to retrieve gesture data.
-void SDKClient::OnGestureStreamCallback(const GestureStreamInfo* const p_GestureStream)
+void SDKClient::OnGestureStreamCallback(const GestureStreamInfo *const p_GestureStream)
 {
 	if (s_Instance)
 	{
@@ -388,9 +436,11 @@ void SDKClient::OnGestureStreamCallback(const GestureStreamInfo* const p_Gesture
 		{
 			GestureProbabilities t_Probs;
 			CoreSdk_GetGestureStreamData(i, 0, &t_Probs);
-			if (t_Probs.isUserID)continue;
-			if (t_Probs.id != s_Instance->m_FirstLeftGloveID && t_Probs.id != s_Instance->m_FirstRightGloveID)continue;
-			ClientGestures* t_Gest = new ClientGestures();
+			if (t_Probs.isUserID)
+				continue;
+			if (t_Probs.id != s_Instance->m_FirstLeftGloveID && t_Probs.id != s_Instance->m_FirstRightGloveID)
+				continue;
+			ClientGestures *t_Gest = new ClientGestures();
 			t_Gest->info = t_Probs;
 			t_Gest->probabilities.reserve(t_Gest->info.totalGestureCount);
 			uint32_t t_BatchCount = (t_Gest->info.totalGestureCount / MAX_GESTURE_DATA_CHUNK_SIZE) + 1;
@@ -402,18 +452,20 @@ void SDKClient::OnGestureStreamCallback(const GestureStreamInfo* const p_Gesture
 					t_Gest->probabilities.push_back(t_Probs.gestureData[j]);
 				}
 				t_ProbabilityIdx += t_Probs.gestureCount;
-				CoreSdk_GetGestureStreamData(i, t_ProbabilityIdx, &t_Probs); //this will get more data, if needed for the next iteration.
+				CoreSdk_GetGestureStreamData(i, t_ProbabilityIdx, &t_Probs); // this will get more data, if needed for the next iteration.
 			}
 
 			s_Instance->m_GestureMutex.lock();
 			if (t_Probs.id == s_Instance->m_FirstLeftGloveID)
 			{
-				if (s_Instance->m_NewFirstLeftGloveGestures != nullptr) delete s_Instance->m_NewFirstLeftGloveGestures;
+				if (s_Instance->m_NewFirstLeftGloveGestures != nullptr)
+					delete s_Instance->m_NewFirstLeftGloveGestures;
 				s_Instance->m_NewFirstLeftGloveGestures = t_Gest;
 			}
 			else
 			{
-				if (s_Instance->m_NewFirstRightGloveGestures != nullptr) delete s_Instance->m_NewFirstRightGloveGestures;
+				if (s_Instance->m_NewFirstRightGloveGestures != nullptr)
+					delete s_Instance->m_NewFirstRightGloveGestures;
 				s_Instance->m_NewFirstRightGloveGestures = t_Gest;
 			}
 			s_Instance->m_GestureMutex.unlock();
@@ -423,23 +475,24 @@ void SDKClient::OnGestureStreamCallback(const GestureStreamInfo* const p_Gesture
 
 /// @brief This gets called when receiving landscape information from core
 /// @param p_Landscape contains the new landscape from core.
-void SDKClient::OnLandscapeCallback(const Landscape* const p_Landscape)
+void SDKClient::OnLandscapeCallback(const Landscape *const p_Landscape)
 {
-	if (s_Instance == nullptr)return;
+	if (s_Instance == nullptr)
+		return;
 
-	Landscape* t_Landscape = new Landscape(*p_Landscape);
+	Landscape *t_Landscape = new Landscape(*p_Landscape);
 	s_Instance->m_LandscapeMutex.lock();
-	if (s_Instance->m_NewLandscape != nullptr) delete s_Instance->m_NewLandscape;
+	if (s_Instance->m_NewLandscape != nullptr)
+		delete s_Instance->m_NewLandscape;
 	s_Instance->m_NewLandscape = t_Landscape;
 	s_Instance->m_NewGestureLandscapeData.resize(t_Landscape->gestureCount);
 	CoreSdk_GetGestureLandscapeData(s_Instance->m_NewGestureLandscapeData.data(), (uint32_t)s_Instance->m_NewGestureLandscapeData.size());
 	s_Instance->m_LandscapeMutex.unlock();
 }
 
-
 /// @brief This gets called when receiving a system message from Core.
 /// @param p_SystemMessage contains the system message received from core.
-void SDKClient::OnSystemCallback(const SystemMessage* const p_SystemMessage)
+void SDKClient::OnSystemCallback(const SystemMessage *const p_SystemMessage)
 {
 	if (s_Instance)
 	{
@@ -467,18 +520,19 @@ void SDKClient::OnSystemCallback(const SystemMessage* const p_SystemMessage)
 /// does not always contain ALL of the devices, because some may not have had new data since
 /// the last time the ergonomics data was sent.
 /// @param p_Ergo contains the ergonomics data for each glove connected to Core.
-void SDKClient::OnErgonomicsCallback(const ErgonomicsStream* const p_Ergo)
+void SDKClient::OnErgonomicsCallback(const ErgonomicsStream *const p_Ergo)
 {
-	//ZMQ
+	// ZMQ
 	int txt_leng = 0;
-	//ZMQ
+	// ZMQ
 	if (s_Instance)
 	{
 		for (uint32_t i = 0; i < p_Ergo->dataCount; i++)
 		{
-			if (p_Ergo->data[i].isUserID)continue;
+			if (p_Ergo->data[i].isUserID)
+				continue;
 
-			ErgonomicsData* t_Ergo = nullptr;
+			ErgonomicsData *t_Ergo = nullptr;
 			if (p_Ergo->data[i].id == s_Instance->m_FirstLeftGloveID)
 			{
 				t_Ergo = &s_Instance->m_LeftGloveErgoData;
@@ -487,7 +541,8 @@ void SDKClient::OnErgonomicsCallback(const ErgonomicsStream* const p_Ergo)
 			{
 				t_Ergo = &s_Instance->m_RightGloveErgoData;
 			}
-			if (t_Ergo == nullptr)continue;
+			if (t_Ergo == nullptr)
+				continue;
 			CoreSdk_GetTimestampInfo(p_Ergo->publishTime, &s_Instance->m_ErgoTimestampInfo);
 			t_Ergo->id = p_Ergo->data[i].id;
 			t_Ergo->isUserID = p_Ergo->data[i].isUserID;
@@ -496,29 +551,32 @@ void SDKClient::OnErgonomicsCallback(const ErgonomicsStream* const p_Ergo)
 				t_Ergo->data[j] = p_Ergo->data[i].data[j];
 			}
 		}
-		//ZMQ
-		try{
-			ErgonomicsData* l_ergo = &s_Instance->m_LeftGloveErgoData;
-			ErgonomicsData* r_ergo = &s_Instance->m_RightGloveErgoData;
+		// ZMQ
+		try
+		{
+			ErgonomicsData *l_ergo = &s_Instance->m_LeftGloveErgoData;
+			ErgonomicsData *r_ergo = &s_Instance->m_RightGloveErgoData;
 			txt_leng = snprintf(s_Instance->char_buf, sizeof(s_Instance->char_buf),
-	"%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
-	l_ergo->data[0], l_ergo->data[1], l_ergo->data[2], l_ergo->data[3],
-	l_ergo->data[4], l_ergo->data[5], l_ergo->data[6], l_ergo->data[7],
-	l_ergo->data[8], l_ergo->data[9], l_ergo->data[10], l_ergo->data[11],
-	l_ergo->data[12], l_ergo->data[13], l_ergo->data[14], l_ergo->data[15],
-	l_ergo->data[16], l_ergo->data[17], l_ergo->data[18], l_ergo->data[19],
-	r_ergo->data[20], r_ergo->data[21], r_ergo->data[22], r_ergo->data[23],
-	r_ergo->data[24], r_ergo->data[25], r_ergo->data[26], r_ergo->data[27],
-	r_ergo->data[28], r_ergo->data[29], r_ergo->data[30], r_ergo->data[31],
-	r_ergo->data[32], r_ergo->data[33], r_ergo->data[34], r_ergo->data[35],
-	r_ergo->data[36], r_ergo->data[37], r_ergo->data[38], r_ergo->data[39]);
+								"%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
+								l_ergo->data[0], l_ergo->data[1], l_ergo->data[2], l_ergo->data[3],
+								l_ergo->data[4], l_ergo->data[5], l_ergo->data[6], l_ergo->data[7],
+								l_ergo->data[8], l_ergo->data[9], l_ergo->data[10], l_ergo->data[11],
+								l_ergo->data[12], l_ergo->data[13], l_ergo->data[14], l_ergo->data[15],
+								l_ergo->data[16], l_ergo->data[17], l_ergo->data[18], l_ergo->data[19],
+								r_ergo->data[20], r_ergo->data[21], r_ergo->data[22], r_ergo->data[23],
+								r_ergo->data[24], r_ergo->data[25], r_ergo->data[26], r_ergo->data[27],
+								r_ergo->data[28], r_ergo->data[29], r_ergo->data[30], r_ergo->data[31],
+								r_ergo->data[32], r_ergo->data[33], r_ergo->data[34], r_ergo->data[35],
+								r_ergo->data[36], r_ergo->data[37], r_ergo->data[38], r_ergo->data[39]);
 
-			//txt_leng = sprintf_s(s_Instance->char_buf, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f", l_ergo->data[0], l_ergo->data[1], l_ergo->data[2], l_ergo->data[3], l_ergo->data[4], l_ergo->data[5], l_ergo->data[6], l_ergo->data[7], l_ergo->data[8], l_ergo->data[9], l_ergo->data[10], l_ergo->data[11], l_ergo->data[12], l_ergo->data[13], l_ergo->data[14], l_ergo->data[15], l_ergo->data[16], l_ergo->data[17], l_ergo->data[18], l_ergo->data[19], r_ergo->data[20], r_ergo->data[21], r_ergo->data[22], r_ergo->data[23], r_ergo->data[24], r_ergo->data[25], r_ergo->data[26], r_ergo->data[27], r_ergo->data[28], r_ergo->data[29], r_ergo->data[30], r_ergo->data[31], r_ergo->data[32], r_ergo->data[33], r_ergo->data[34], r_ergo->data[35], r_ergo->data[36], r_ergo->data[37], r_ergo->data[38], r_ergo->data[39]);
-			s_Instance->sock.send(zmq::buffer(s_Instance->char_buf, txt_leng), zmq::send_flags::dontwait);
-		}catch (...) {
+			// txt_leng = sprintf_s(s_Instance->char_buf, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f", l_ergo->data[0], l_ergo->data[1], l_ergo->data[2], l_ergo->data[3], l_ergo->data[4], l_ergo->data[5], l_ergo->data[6], l_ergo->data[7], l_ergo->data[8], l_ergo->data[9], l_ergo->data[10], l_ergo->data[11], l_ergo->data[12], l_ergo->data[13], l_ergo->data[14], l_ergo->data[15], l_ergo->data[16], l_ergo->data[17], l_ergo->data[18], l_ergo->data[19], r_ergo->data[20], r_ergo->data[21], r_ergo->data[22], r_ergo->data[23], r_ergo->data[24], r_ergo->data[25], r_ergo->data[26], r_ergo->data[27], r_ergo->data[28], r_ergo->data[29], r_ergo->data[30], r_ergo->data[31], r_ergo->data[32], r_ergo->data[33], r_ergo->data[34], r_ergo->data[35], r_ergo->data[36], r_ergo->data[37], r_ergo->data[38], r_ergo->data[39]);
+			s_Instance->sock_ergo.send(zmq::buffer(s_Instance->char_buf, txt_leng), zmq::send_flags::dontwait);
+		}
+		catch (...)
+		{
 			printf("Send Failed");
 		}
-		//ZMQ
+		// ZMQ
 	}
 }
 
@@ -584,8 +642,7 @@ ClientReturnCode SDKClient::InitializeSDK()
 	}
 
 	// Invalid connection type detected
-	if (m_ConnectionType == ConnectionType::ConnectionType_Invalid
-		|| m_ConnectionType == ConnectionType::ClientState_MAX_CLIENT_STATE_SIZE)
+	if (m_ConnectionType == ConnectionType::ConnectionType_Invalid || m_ConnectionType == ConnectionType::ClientState_MAX_CLIENT_STATE_SIZE)
 		return ClientReturnCode::ClientReturnCode_FailedToInitialize;
 
 	// before we can use the SDK, some internal SDK bits need to be initialized.
@@ -615,7 +672,7 @@ ClientReturnCode SDKClient::InitializeSDK()
 	t_VUH.handedness = Side::Side_Right;
 	t_VUH.up = AxisPolarity::AxisPolarity_PositiveZ;
 	t_VUH.view = AxisView::AxisView_XFromViewer;
-	t_VUH.unitScale = 1.0f; //1.0 is meters, 0.01 is cm, 0.001 is mm.
+	t_VUH.unitScale = 1.0f; // 1.0 is meters, 0.01 is cm, 0.001 is mm.
 
 	// The above specified coordinate system is used to initialize and the coordinate space is specified (world/local).
 	const SDKReturnCode t_CoordinateResult = CoreSdk_InitializeCoordinateSystemWithVUH(t_VUH, true);
@@ -915,7 +972,7 @@ ClientReturnCode SDKClient::ConnectingToCore()
 	{
 		m_State = ClientState::ClientState_NoHostsFound;
 
-		return ClientReturnCode::ClientReturnCode_Success; // Differentiating between error and no connect 
+		return ClientReturnCode::ClientReturnCode_Success; // Differentiating between error and no connect
 	}
 	if (t_ConnectResult != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -935,10 +992,9 @@ ClientReturnCode SDKClient::ConnectingToCore()
 	return ClientReturnCode::ClientReturnCode_Success;
 }
 
-
 /// @brief Some things happen before every display update, no matter what state.
 /// They happen here, such as the updating of the landscape and the generated tracker
-/// @return 
+/// @return
 ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 {
 	AdvanceConsolePosition(-1);
@@ -946,7 +1002,8 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 	m_SkeletonMutex.lock();
 	if (m_NextSkeleton != nullptr)
 	{
-		if (m_Skeleton != nullptr)delete m_Skeleton;
+		if (m_Skeleton != nullptr)
+			delete m_Skeleton;
 		m_Skeleton = m_NextSkeleton;
 		m_NextSkeleton = nullptr;
 	}
@@ -955,7 +1012,8 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 	m_RawSkeletonMutex.lock();
 	if (m_NextRawSkeleton != nullptr)
 	{
-		if (m_RawSkeleton != nullptr)delete m_RawSkeleton;
+		if (m_RawSkeleton != nullptr)
+			delete m_RawSkeleton;
 		m_RawSkeleton = m_NextRawSkeleton;
 		m_NextRawSkeleton = nullptr;
 	}
@@ -964,7 +1022,8 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 	m_TrackerMutex.lock();
 	if (m_NextTrackerData != nullptr)
 	{
-		if (m_TrackerData != nullptr)delete m_TrackerData;
+		if (m_TrackerData != nullptr)
+			delete m_TrackerData;
 		m_TrackerData = m_NextTrackerData;
 		m_NextTrackerData = nullptr;
 	}
@@ -973,13 +1032,15 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 	m_GestureMutex.lock();
 	if (m_NewFirstLeftGloveGestures != nullptr)
 	{
-		if (m_FirstLeftGloveGestures != nullptr) delete m_FirstLeftGloveGestures;
+		if (m_FirstLeftGloveGestures != nullptr)
+			delete m_FirstLeftGloveGestures;
 		m_FirstLeftGloveGestures = m_NewFirstLeftGloveGestures;
 		m_NewFirstLeftGloveGestures = nullptr;
 	}
 	if (m_NewFirstRightGloveGestures != nullptr)
 	{
-		if (m_FirstRightGloveGestures != nullptr) delete m_FirstRightGloveGestures;
+		if (m_FirstRightGloveGestures != nullptr)
+			delete m_FirstRightGloveGestures;
 		m_FirstRightGloveGestures = m_NewFirstRightGloveGestures;
 		m_NewFirstRightGloveGestures = nullptr;
 	}
@@ -1000,7 +1061,8 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 
 	m_FirstLeftGloveID = 0;
 	m_FirstRightGloveID = 0;
-	if (m_Landscape == nullptr)return ClientReturnCode::ClientReturnCode_Success;
+	if (m_Landscape == nullptr)
+		return ClientReturnCode::ClientReturnCode_Success;
 	for (size_t i = 0; i < m_Landscape->gloveDevices.gloveCount; i++)
 	{
 		if (m_FirstLeftGloveID == 0 && m_Landscape->gloveDevices.gloves[i].side == Side::Side_Left)
@@ -1017,7 +1079,6 @@ ClientReturnCode SDKClient::UpdateBeforeDisplayingData()
 
 	return ClientReturnCode::ClientReturnCode_Success;
 }
-
 
 /// @brief Once the connections are made we loop this function
 /// it calls all the input handlers for different aspects of the SDK
@@ -1051,7 +1112,7 @@ ClientReturnCode SDKClient::DisplayingData()
 }
 
 /// @brief display the ergonomics data of the gloves, and handles haptic commands.
-/// @return 
+/// @return
 ClientReturnCode SDKClient::DisplayingDataGlove()
 {
 	ClientLog::print("[Q] Back  <<Gloves & Dongles>> [ESC] quit");
@@ -1085,7 +1146,7 @@ ClientReturnCode SDKClient::DisplayingDataSkeleton()
 	HandleSkeletonHapticCommands();
 
 	PrintSkeletonData();
-	
+
 	AdvanceConsolePosition(1);
 	PrintSystemMessage();
 
@@ -1101,7 +1162,7 @@ ClientReturnCode SDKClient::DisplayingDataTracker()
 
 	GO_TO_MENU_IF_REQUESTED()
 	HandleTrackerCommands();
-	
+
 	PrintRawSkeletonData();
 
 	PrintTrackerData();
@@ -1194,7 +1255,6 @@ ClientReturnCode SDKClient::DisplayingPairing()
 	ClientLog::print("<<Glove Pairing>> [P] Pair first available Glove");
 	ClientLog::print("<<Glove Pairing>> [U] Unpair first available Glove");
 
-
 	GO_TO_MENU_IF_REQUESTED()
 
 	HandlePairingCommands();
@@ -1205,11 +1265,14 @@ ClientReturnCode SDKClient::DisplayingPairing()
 	return ClientReturnCode::ClientReturnCode_Success;
 }
 
-/// @brief When the SDK loses the connection with Core the user can either 
+/// @brief When the SDK loses the connection with Core the user can either
 /// close the sdk or try to reconnect to a local or to a remote host.
 ClientReturnCode SDKClient::DisconnectedFromCore()
 {
-	if (m_Host == nullptr) { return ClientReturnCode::ClientReturnCode_FailedToConnect; }
+	if (m_Host == nullptr)
+	{
+		return ClientReturnCode::ClientReturnCode_FailedToConnect;
+	}
 
 	AdvanceConsolePosition(-1);
 
@@ -1247,7 +1310,6 @@ ClientReturnCode SDKClient::DisconnectedFromCore()
 
 	AdvanceConsolePosition(10);
 
-
 	if (GetKeyDown('P'))
 	{
 		ClientLog::print("Picking new host.");
@@ -1266,11 +1328,17 @@ ClientReturnCode SDKClient::DisconnectedFromCore()
 	return ClientReturnCode::ClientReturnCode_Success;
 }
 
-/// @brief It is called when the sdk is disconnected from Core and the user select one of the options to reconnect. 
+/// @brief It is called when the sdk is disconnected from Core and the user select one of the options to reconnect.
 ClientReturnCode SDKClient::ReconnectingToCore(int32_t p_ReconnectionTime, int32_t p_ReconnectionAttempts)
 {
-	if (p_ReconnectionTime <= 0) { p_ReconnectionTime = std::numeric_limits<int32_t>::max(); }
-	if (p_ReconnectionAttempts <= 0) { p_ReconnectionAttempts = std::numeric_limits<int32_t>::max(); }
+	if (p_ReconnectionTime <= 0)
+	{
+		p_ReconnectionTime = std::numeric_limits<int32_t>::max();
+	}
+	if (p_ReconnectionAttempts <= 0)
+	{
+		p_ReconnectionAttempts = std::numeric_limits<int32_t>::max();
+	}
 
 	// Restarting and initializing CoreConnection to make sure a new connection can be set up
 	const ClientReturnCode t_RestartResult = RestartSDK();
@@ -1286,7 +1354,7 @@ ClientReturnCode SDKClient::ReconnectingToCore(int32_t p_ReconnectionTime, int32
 	{
 		ClientLog::print("Trying to reconnect to {} at {}. Attempt {}.", m_Host->hostName, m_Host->ipAddress, t_Attempt);
 		ClientLog::print("Attempts remaining: {}. Seconds before time out: {}.", p_ReconnectionAttempts, p_ReconnectionTime);
-		
+
 		bool t_ConnectLocally = m_ConnectionType == ConnectionType::ConnectionType_Local;
 		if (t_ConnectLocally)
 		{
@@ -1317,31 +1385,31 @@ ClientReturnCode SDKClient::ReconnectingToCore(int32_t p_ReconnectionTime, int32
 	return ClientReturnCode::ClientReturnCode_FailedToConnect;
 }
 
-
 /// @brief Prints the ergonomics data of a hand.
-/// @param p_ErgoData 
-void SDKClient::PrintHandErgoData(ErgonomicsData& p_ErgoData, bool p_Left)
+/// @param p_ErgoData
+void SDKClient::PrintHandErgoData(ErgonomicsData &p_ErgoData, bool p_Left)
 {
-	const std::string t_FingerNames[NUM_FINGERS_ON_HAND] = { "[thumb] ", "[index] ", "[middle]", "[ring]  ", "[pinky] " };
-	const std::string t_FingerJointNames[NUM_FINGERS_ON_HAND] = { "mcp", "pip", "dip" };
-	const std::string t_ThumbJointNames[NUM_FINGERS_ON_HAND] = { "cmc", "mcp", "ip " };
+	const std::string t_FingerNames[NUM_FINGERS_ON_HAND] = {"[thumb] ", "[index] ", "[middle]", "[ring]  ", "[pinky] "};
+	const std::string t_FingerJointNames[NUM_FINGERS_ON_HAND] = {"mcp", "pip", "dip"};
+	const std::string t_ThumbJointNames[NUM_FINGERS_ON_HAND] = {"cmc", "mcp", "ip "};
 
 	int t_DataOffset = 0;
-	if (!p_Left)t_DataOffset = 20;
+	if (!p_Left)
+		t_DataOffset = 20;
 
-	const std::string* t_JointNames = t_ThumbJointNames;
+	const std::string *t_JointNames = t_ThumbJointNames;
 	for (unsigned int t_FingerNumber = 0; t_FingerNumber < NUM_FINGERS_ON_HAND; t_FingerNumber++)
 	{
 		ClientLog::printWithPadding("{} {} spread: {}, {} stretch: {}, {} stretch: {}, {} stretch: {} ", 6,
-		t_FingerNames[t_FingerNumber], // Name of the finger.
-		t_JointNames[0],
-		RoundFloatValue(p_ErgoData.data[t_DataOffset], 2),
-		t_JointNames[0],
-		RoundFloatValue(p_ErgoData.data[t_DataOffset + 1], 2),
-		t_JointNames[1],
-		RoundFloatValue(p_ErgoData.data[t_DataOffset + 2], 2),
-		t_JointNames[2],
-		RoundFloatValue(p_ErgoData.data[t_DataOffset + 3], 2));
+									t_FingerNames[t_FingerNumber], // Name of the finger.
+									t_JointNames[0],
+									RoundFloatValue(p_ErgoData.data[t_DataOffset], 2),
+									t_JointNames[0],
+									RoundFloatValue(p_ErgoData.data[t_DataOffset + 1], 2),
+									t_JointNames[1],
+									RoundFloatValue(p_ErgoData.data[t_DataOffset + 2], 2),
+									t_JointNames[2],
+									RoundFloatValue(p_ErgoData.data[t_DataOffset + 3], 2));
 		t_JointNames = t_FingerJointNames;
 		t_DataOffset += 4;
 	}
@@ -1352,8 +1420,8 @@ void SDKClient::PrintErgonomicsData()
 {
 	// for testing purposes we only look at the first 2 gloves available
 	ClientLog::print(" -- Ergo Timestamp {}:{}:{}.{} ~ {}/{}/{}(D/M/Y)",
-		m_ErgoTimestampInfo.hour, m_ErgoTimestampInfo.minute, m_ErgoTimestampInfo.second, m_ErgoTimestampInfo.fraction,
-		m_ErgoTimestampInfo.day, m_ErgoTimestampInfo.month, std::to_string(m_ErgoTimestampInfo.year));
+					 m_ErgoTimestampInfo.hour, m_ErgoTimestampInfo.minute, m_ErgoTimestampInfo.second, m_ErgoTimestampInfo.fraction,
+					 m_ErgoTimestampInfo.day, m_ErgoTimestampInfo.month, std::to_string(m_ErgoTimestampInfo.year));
 	ClientLog::print(" -- Left Glove -- 0x{} - Angles in degrees", m_FirstLeftGloveID);
 	if (m_LeftGloveErgoData.id == m_FirstLeftGloveID)
 	{
@@ -1419,7 +1487,8 @@ void SDKClient::PrintDongleData()
 {
 	// get a dongle id
 	uint32_t t_DongleCount = m_Landscape->gloveDevices.dongleCount;
-	if (t_DongleCount == 0) return; // we got no gloves to work on anyway!
+	if (t_DongleCount == 0)
+		return; // we got no gloves to work on anyway!
 
 	DongleLandscapeData t_DongleData;
 
@@ -1429,8 +1498,8 @@ void SDKClient::PrintDongleData()
 		ClientLog::print(" -- Dongle -- 0x{}", t_DongleData.id);
 
 		ClientLog::print(" Type: {} - {}",
-			ConvertDeviceClassTypeToString(t_DongleData.classType),
-			ConvertDeviceFamilyTypeToString(t_DongleData.familyType));
+						 ConvertDeviceClassTypeToString(t_DongleData.classType),
+						 ConvertDeviceFamilyTypeToString(t_DongleData.familyType));
 		ClientLog::print(" License: {}", t_DongleData.licenseType);
 
 		AdvanceConsolePosition(4);
@@ -1441,7 +1510,7 @@ void SDKClient::PrintDongleData()
 void SDKClient::PrintSystemMessage()
 {
 	m_SystemMessageMutex.lock();
-	ClientLog::print(""); //blank line
+	ClientLog::print(""); // blank line
 	ClientLog::print("Received System data:{} / code:{}", m_SystemMessage, (int32_t)m_SystemMessageCode);
 	m_SystemMessageMutex.unlock();
 }
@@ -1469,7 +1538,8 @@ void SDKClient::PrintRawSkeletonData()
 	}
 	ClientLog::print("Received Skeleton glove data from Core. skeletons:{} first skeleton glove id:{}", m_RawSkeleton->skeletons.size(), m_RawSkeleton->skeletons[0].info.gloveId);
 
-	if (m_FirstLeftGloveID == 0 && m_FirstRightGloveID == 0) return; // no gloves connected to core
+	if (m_FirstLeftGloveID == 0 && m_FirstRightGloveID == 0)
+		return; // no gloves connected to core
 
 	uint32_t t_NodeCount = 0;
 	uint32_t t_GloveId;
@@ -1490,8 +1560,8 @@ void SDKClient::PrintRawSkeletonData()
 	}
 
 	// now get the hierarchy data, this can be used to reconstruct the positions of each node in case the user set up the system with a local coordinate system, and to know what each node is exactly.
-	// having a node position defined as local means that this will be related to its parent 
-	NodeInfo* t_NodeInfo = new NodeInfo[t_NodeCount];
+	// having a node position defined as local means that this will be related to its parent
+	NodeInfo *t_NodeInfo = new NodeInfo[t_NodeCount];
 	t_Result = CoreSdk_GetRawSkeletonNodeInfoArray(t_GloveId, t_NodeInfo, t_NodeCount);
 	if (t_Result != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -1508,7 +1578,7 @@ void SDKClient::PrintRawSkeletonData()
 /// we only display a little bit of data of the trackers we receive.
 void SDKClient::PrintTrackerData()
 {
-	ClientLog::print("Tracker test active: {}.", m_TrackerTest); //To show that test tracker is being sent to core
+	ClientLog::print("Tracker test active: {}.", m_TrackerTest); // To show that test tracker is being sent to core
 	ClientLog::print("Per user tracker display: {}.", m_TrackerDataDisplayPerUser);
 
 	AdvanceConsolePosition(2);
@@ -1547,8 +1617,9 @@ void SDKClient::PrintTrackerDataGlobal()
 
 	ClientLog::print("received available trackers :{} ", t_NumberOfAvailabletrackers);
 
-	if (t_NumberOfAvailabletrackers == 0) return; // nothing else to do.
-	TrackerId* t_TrackerId = new TrackerId[t_NumberOfAvailabletrackers];
+	if (t_NumberOfAvailabletrackers == 0)
+		return; // nothing else to do.
+	TrackerId *t_TrackerId = new TrackerId[t_NumberOfAvailabletrackers];
 	t_TrackerResult = CoreSdk_GetIdsOfAvailableTrackers(t_TrackerId, t_NumberOfAvailabletrackers);
 	if (t_TrackerResult != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -1567,8 +1638,8 @@ void SDKClient::PrintTrackerDataPerUser()
 		ClientLog::error("Failed to get user count. The error given was {}.", (int32_t)t_UserResult);
 		return;
 	}
-	if (t_NumberOfAvailableUsers == 0) return; // nothing to get yet
-
+	if (t_NumberOfAvailableUsers == 0)
+		return; // nothing to get yet
 
 	for (uint32_t i = 0; i < t_NumberOfAvailableUsers; i++)
 	{
@@ -1580,12 +1651,14 @@ void SDKClient::PrintTrackerDataPerUser()
 			return;
 		}
 
-		if (t_NumberOfAvailabletrackers == 0) continue;
+		if (t_NumberOfAvailabletrackers == 0)
+			continue;
 
 		ClientLog::print("received available trackers for user index[{}] :{} ", i, t_NumberOfAvailabletrackers);
 
-		if (t_NumberOfAvailabletrackers == 0) return; // nothing else to do.
-		TrackerId* t_TrackerId = new TrackerId[t_NumberOfAvailabletrackers];
+		if (t_NumberOfAvailabletrackers == 0)
+			return; // nothing else to do.
+		TrackerId *t_TrackerId = new TrackerId[t_NumberOfAvailabletrackers];
 		t_TrackerResult = CoreSdk_GetIdsOfAvailableTrackersForUserIndex(t_TrackerId, i, t_NumberOfAvailabletrackers);
 		if (t_TrackerResult != SDKReturnCode::SDKReturnCode_Success)
 		{
@@ -1634,7 +1707,7 @@ void SDKClient::PrintLandscapeTimeData()
 
 void SDKClient::PrintGestureData()
 {
-	ClientGestures* t_Gest = m_FirstLeftGloveGestures;
+	ClientGestures *t_Gest = m_FirstLeftGloveGestures;
 	std::string t_Side = "Left";
 	if (!m_ShowLeftGestures)
 	{
@@ -1650,11 +1723,12 @@ void SDKClient::PrintGestureData()
 	}
 	ClientLog::print("Total count of gestures for the {} glove: {}", t_Side, t_Gest->info.totalGestureCount);
 	uint32_t t_Max = t_Gest->info.totalGestureCount;
-	if (t_Max > 20) t_Max = 20;
+	if (t_Max > 20)
+		t_Max = 20;
 	ClientLog::print("Showing result of first {} gestures.", t_Max);
 	for (uint32_t i = 0; i < t_Max; i++)
 	{
-		char* t_Name = "";
+		char *t_Name = "";
 		for (uint32_t g = 0; g < m_GestureLandscapeData.size(); g++)
 		{
 			if (m_GestureLandscapeData[g].id == t_Gest->probabilities[i].id)
@@ -1692,87 +1766,87 @@ void SDKClient::PrintSkeletonInfo()
 {
 	switch (m_ChainType)
 	{
-		case ChainType::ChainType_FingerIndex:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_FingerIndex");
-			break;
-		}
-		case ChainType::ChainType_FingerMiddle:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_FingerMiddle");
-			break;
-		}
-		case ChainType::ChainType_FingerPinky:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_FingerPinky");
-			break;
-		}
-		case ChainType::ChainType_FingerRing:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_FingerRing");
-			break;
-		}
-		case ChainType::ChainType_FingerThumb:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_FingerThumb");
-			break;
-		}
-		case ChainType::ChainType_Hand:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Hand");
-			break;
-		}
-		case ChainType::ChainType_Head:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Head");
-			break;
-		}
-		case ChainType::ChainType_Leg:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Leg");
-			break;
-		}
-		case ChainType::ChainType_Neck:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Neck");
-			break;
-		}
-		case ChainType::ChainType_Pelvis:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Pelvis");
-			break;
-		}
-		case ChainType::ChainType_Shoulder:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Shoulder");
-			break;
-		}
-		case ChainType::ChainType_Spine:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Spine");
-			break;
-		}
-		case ChainType::ChainType_Arm:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Arm");
-			break;
-		}
-		case ChainType_Foot:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Foot");
-			break;
-		}
-		case ChainType_Toe:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Toe");
-			break;
-		}
-		case ChainType::ChainType_Invalid:
-		default:
-		{
-			ClientLog::print("received Skeleton chain type: ChainType_Invalid");
-			break;
-		}
+	case ChainType::ChainType_FingerIndex:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_FingerIndex");
+		break;
+	}
+	case ChainType::ChainType_FingerMiddle:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_FingerMiddle");
+		break;
+	}
+	case ChainType::ChainType_FingerPinky:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_FingerPinky");
+		break;
+	}
+	case ChainType::ChainType_FingerRing:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_FingerRing");
+		break;
+	}
+	case ChainType::ChainType_FingerThumb:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_FingerThumb");
+		break;
+	}
+	case ChainType::ChainType_Hand:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Hand");
+		break;
+	}
+	case ChainType::ChainType_Head:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Head");
+		break;
+	}
+	case ChainType::ChainType_Leg:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Leg");
+		break;
+	}
+	case ChainType::ChainType_Neck:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Neck");
+		break;
+	}
+	case ChainType::ChainType_Pelvis:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Pelvis");
+		break;
+	}
+	case ChainType::ChainType_Shoulder:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Shoulder");
+		break;
+	}
+	case ChainType::ChainType_Spine:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Spine");
+		break;
+	}
+	case ChainType::ChainType_Arm:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Arm");
+		break;
+	}
+	case ChainType_Foot:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Foot");
+		break;
+	}
+	case ChainType_Toe:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Toe");
+		break;
+	}
+	case ChainType::ChainType_Invalid:
+	default:
+	{
+		ClientLog::print("received Skeleton chain type: ChainType_Invalid");
+		break;
+	}
 	}
 	AdvanceConsolePosition(2);
 }
@@ -1782,7 +1856,7 @@ void SDKClient::PrintSkeletonInfo()
 /// With callback OnSystemCallback this application can be notified when one of its temporary skeletons has been modified, so it can get it and, potentially, load it.
 void SDKClient::GetTemporarySkeletonIfModified()
 {
-	// if a temporary skeleton associated to the current session has been modified we can get it and, potentially, load it 
+	// if a temporary skeleton associated to the current session has been modified we can get it and, potentially, load it
 	if (m_ModifiedSkeletonIndex != UINT_MAX)
 	{
 		// get the temporary skeleton
@@ -1798,24 +1872,24 @@ void SDKClient::GetTemporarySkeletonIfModified()
 		// Remember to always call function CoreSdk_ClearTemporarySkeleton after loading a temporary skeleton,
 		// this will keep the temporary skeleton list in sync between Core and the SDK.
 
-		//uint32_t t_ID = 0;
-		//SDKReturnCode t_Res = CoreSdk_LoadSkeleton(m_ModifiedSkeletonIndex, &t_ID);
-		//if (t_Res != SDKReturnCode::SDKReturnCode_Success)
+		// uint32_t t_ID = 0;
+		// SDKReturnCode t_Res = CoreSdk_LoadSkeleton(m_ModifiedSkeletonIndex, &t_ID);
+		// if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 		//{
 		//	ClientLog::error("Failed to load skeleton. The error given was {}.", t_Res);
 		//	return;
-		//}
-		//if (t_ID == 0)
+		// }
+		// if (t_ID == 0)
 		//{
 		//	ClientLog::error("Failed to give skeleton an ID.");
-		//}
-		//m_LoadedSkeletons.push_back(t_ID);
-		//t_Res = CoreSdk_ClearTemporarySkeleton(m_ModifiedSkeletonIndex, m_SessionId);
-		//if (t_Res != SDKReturnCode::SDKReturnCode_Success)
+		// }
+		// m_LoadedSkeletons.push_back(t_ID);
+		// t_Res = CoreSdk_ClearTemporarySkeleton(m_ModifiedSkeletonIndex, m_SessionId);
+		// if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 		//{
 		//	ClientLog::error("Failed to clear temporary skeleton. The error given was {}.", t_Res);
 		//	return;
-		//}
+		// }
 		m_ModifiedSkeletonIndex = UINT_MAX;
 	}
 }
@@ -1872,7 +1946,7 @@ void SDKClient::HandleHapticCommands()
 	const int t_LeftHand = 0;
 	const int t_RightHand = 1;
 
-	uint32_t t_GloveIDs[2] = { 0, 0 };
+	uint32_t t_GloveIDs[2] = {0, 0};
 
 	for (size_t i = 0; i < m_Landscape->gloveDevices.gloveCount; i++)
 	{
@@ -1897,11 +1971,11 @@ void SDKClient::HandleHapticCommands()
 	ClientHapticSettings t_HapticState[NUMBER_OF_HANDS_SUPPORTED]{};
 
 	// The strange key number sequence here results from having gloves lie in front of you, and have the keys and haptics in the same order.
-	t_HapticState[t_LeftHand].shouldHapticFinger[0] = GetKey('5'); // left thumb
-	t_HapticState[t_LeftHand].shouldHapticFinger[1] = GetKey('4'); // left index
-	t_HapticState[t_LeftHand].shouldHapticFinger[2] = GetKey('3'); // left middle
-	t_HapticState[t_LeftHand].shouldHapticFinger[3] = GetKey('2'); // left ring
-	t_HapticState[t_LeftHand].shouldHapticFinger[4] = GetKey('1'); // left pinky
+	t_HapticState[t_LeftHand].shouldHapticFinger[0] = GetKey('5');	// left thumb
+	t_HapticState[t_LeftHand].shouldHapticFinger[1] = GetKey('4');	// left index
+	t_HapticState[t_LeftHand].shouldHapticFinger[2] = GetKey('3');	// left middle
+	t_HapticState[t_LeftHand].shouldHapticFinger[3] = GetKey('2');	// left ring
+	t_HapticState[t_LeftHand].shouldHapticFinger[4] = GetKey('1');	// left pinky
 	t_HapticState[t_RightHand].shouldHapticFinger[0] = GetKey('6'); // right thumb
 	t_HapticState[t_RightHand].shouldHapticFinger[1] = GetKey('7'); // right index
 	t_HapticState[t_RightHand].shouldHapticFinger[2] = GetKey('8'); // right middle
@@ -1912,7 +1986,7 @@ void SDKClient::HandleHapticCommands()
 
 	for (unsigned int t_HandNumber = 0; t_HandNumber < NUMBER_OF_HANDS_SUPPORTED; t_HandNumber++)
 	{
-		//If the Glove ID is 0, no glove was found for that side
+		// If the Glove ID is 0, no glove was found for that side
 		if (t_GloveIDs[t_HandNumber] == 0)
 		{
 			continue;
@@ -1945,7 +2019,7 @@ void SDKClient::HandleSkeletonCommands()
 	}
 	if (GetKeyDown('D'))
 	{
-		//Toggle send to DevTools
+		// Toggle send to DevTools
 		m_SendToDevTools = !m_SendToDevTools;
 	}
 }
@@ -1965,11 +2039,11 @@ void SDKClient::HandleSkeletonHapticCommands()
 	const int t_RightHand = 1;
 
 	// The strange key number sequence here results from having gloves lie in front of you, and have the keys and haptics in the same order.
-	t_HapticState[t_LeftHand].shouldHapticFinger[0] = GetKey('5'); // left thumb
-	t_HapticState[t_LeftHand].shouldHapticFinger[1] = GetKey('4'); // left index
-	t_HapticState[t_LeftHand].shouldHapticFinger[2] = GetKey('3'); // left middle
-	t_HapticState[t_LeftHand].shouldHapticFinger[3] = GetKey('2'); // left ring
-	t_HapticState[t_LeftHand].shouldHapticFinger[4] = GetKey('1'); // left pinky
+	t_HapticState[t_LeftHand].shouldHapticFinger[0] = GetKey('5');	// left thumb
+	t_HapticState[t_LeftHand].shouldHapticFinger[1] = GetKey('4');	// left index
+	t_HapticState[t_LeftHand].shouldHapticFinger[2] = GetKey('3');	// left middle
+	t_HapticState[t_LeftHand].shouldHapticFinger[3] = GetKey('2');	// left ring
+	t_HapticState[t_LeftHand].shouldHapticFinger[4] = GetKey('1');	// left pinky
 	t_HapticState[t_RightHand].shouldHapticFinger[0] = GetKey('6'); // right thumb
 	t_HapticState[t_RightHand].shouldHapticFinger[1] = GetKey('7'); // right index
 	t_HapticState[t_RightHand].shouldHapticFinger[2] = GetKey('8'); // right middle
@@ -1987,7 +2061,7 @@ void SDKClient::HandleSkeletonHapticCommands()
 		return;
 	}
 
-	const Side s_Hands[NUMBER_OF_HANDS_SUPPORTED] = { Side::Side_Left, Side::Side_Right };
+	const Side s_Hands[NUMBER_OF_HANDS_SUPPORTED] = {Side::Side_Left, Side::Side_Right};
 	const float s_FullPower = 1.0f;
 
 	// The preferred way of sending the haptics commands is based on skeleton id
@@ -2041,7 +2115,7 @@ void SDKClient::HandleTemporarySkeletonCommands()
 	}
 }
 
-/// @brief This support function is used to set a test tracker and add it to the landscape. 
+/// @brief This support function is used to set a test tracker and add it to the landscape.
 void SDKClient::HandleTrackerCommands()
 {
 	if (GetKeyDown('O'))
@@ -2073,8 +2147,8 @@ void SDKClient::HandleTrackerCommands()
 		t_TrackerData.isHmd = false;
 		t_TrackerData.trackerId = t_TrackerId;
 		t_TrackerData.trackerType = TrackerType::TrackerType_Unknown;
-		t_TrackerData.position = { 0.0f, m_TrackerOffset, 0.0f };
-		t_TrackerData.rotation = { 1.0f, 0.0f, 0.0f, 0.0f };
+		t_TrackerData.position = {0.0f, m_TrackerOffset, 0.0f};
+		t_TrackerData.rotation = {1.0f, 0.0f, 0.0f, 0.0f};
 		t_TrackerData.quality = TrackerQuality::TrackingQuality_Trackable;
 		TrackerData t_TrackerDatas[MAX_NUMBER_OF_TRACKERS];
 		t_TrackerDatas[0] = t_TrackerData;
@@ -2089,13 +2163,14 @@ void SDKClient::HandleTrackerCommands()
 }
 
 /// @brief This support function is used to set the tracker offset. It sets the tracker offset for the left hand tracker to the wrist.
-void SDKClient::SetTrackerOffset() {
+void SDKClient::SetTrackerOffset()
+{
 
 	TrackerOffset t_TrackerOffset;
 
-	//Positions the tracker 3mm right, 58mm up and 43mm forward relative to the wrist. This value is illustrative and should be adjusted to the actual tracker position.
-	t_TrackerOffset.translation = { 0.003f, -0.058f, -0.043f };
-	t_TrackerOffset.rotation = { 1.0f, 0.0f, 0.0f, 0.0f };
+	// Positions the tracker 3mm right, 58mm up and 43mm forward relative to the wrist. This value is illustrative and should be adjusted to the actual tracker position.
+	t_TrackerOffset.translation = {0.003f, -0.058f, -0.043f};
+	t_TrackerOffset.rotation = {1.0f, 0.0f, 0.0f, 0.0f};
 	t_TrackerOffset.entryType = TrackerOffsetType::TrackerOffsetType_LeftHandTrackerToWrist;
 
 	auto t_UserId = m_Landscape->users.users[0].id;
@@ -2129,7 +2204,6 @@ void SDKClient::ExecuteGloveCalibrationStep(GloveCalibrationStepArgs p_Args)
 
 	m_IsCalibrationInProgress = false;
 }
-
 
 /// @brief Handles the console commands for the glove calibration.
 void SDKClient::HandleGloveCalibrationCommands()
@@ -2236,15 +2310,15 @@ void SDKClient::HandleGloveCalibrationCommands()
 }
 
 /// @brief Skeletons are pretty extensive in their data setup
-/// so we have several support functions so we can correctly receive and parse the data, 
+/// so we have several support functions so we can correctly receive and parse the data,
 /// this function helps setup the data.
 /// @param p_Id the id of the created node setup
 /// @param p_ParentId the id of the node parent
-/// @param p_PosX X position of the node, this is defined with respect to the global coordinate system or the local one depending on 
+/// @param p_PosX X position of the node, this is defined with respect to the global coordinate system or the local one depending on
 /// the parameter p_UseWorldCoordinates set when initializing the sdk,
-/// @param p_PosY Y position of the node this is defined with respect to the global coordinate system or the local one depending on 
+/// @param p_PosY Y position of the node this is defined with respect to the global coordinate system or the local one depending on
 /// the parameter p_UseWorldCoordinates set when initializing the sdk,
-/// @param p_PosZ Z position of the node this is defined with respect to the global coordinate system or the local one depending on 
+/// @param p_PosZ Z position of the node this is defined with respect to the global coordinate system or the local one depending on
 /// the parameter p_UseWorldCoordinates set when initializing the sdk,
 /// @param p_Name the name of the node setup
 /// @return the generated node setup
@@ -2252,11 +2326,11 @@ NodeSetup SDKClient::CreateNodeSetup(uint32_t p_Id, uint32_t p_ParentId, float p
 {
 	NodeSetup t_Node;
 	NodeSetup_Init(&t_Node);
-	t_Node.id = p_Id; //Every ID needs to be unique per node in a skeleton.
+	t_Node.id = p_Id; // Every ID needs to be unique per node in a skeleton.
 	CopyString(t_Node.name, sizeof(t_Node.name), p_Name);
 	t_Node.type = NodeType::NodeType_Joint;
-	//Every node should have a parent unless it is the Root node.
-	t_Node.parentID = p_ParentId; //Setting the node ID to its own ID ensures it has no parent.
+	// Every node should have a parent unless it is the Root node.
+	t_Node.parentID = p_ParentId; // Setting the node ID to its own ID ensures it has no parent.
 	t_Node.settings.usedSettings = NodeSettingsFlag::NodeSettingsFlag_None;
 
 	t_Node.transform.position.x = p_PosX;
@@ -2288,65 +2362,63 @@ bool SDKClient::SetupHandNodes(uint32_t p_SklIndex, Side p_Side)
 
 	// Because the skeleton is build up in world space coordinates all joints have to be defined in coordate space as well
 	// If it is required for the skeleton to work in local space, substract all previous positions from the vectors
-	static ManusVec3 s_LeftHandPositions[t_NumFingers * t_NumJoints]
-	{
-		CreateManusVec3(0.025320f, -0.024950f, 0.000000f), //Thumb CMC joint
-		CreateManusVec3(0.025320f + 0.032742f, -0.024950f, 0.000000f), //Thumb MCP joint
-		CreateManusVec3(0.025320f + 0.032742f + 0.028739f, -0.024950f, 0.000000f), //Thumb IP joint
-		CreateManusVec3(0.025320f + 0.032742f + 0.028739f + 0.028739f, -0.024950f, 0.000000f), //Thumb Tip joint
+	static ManusVec3 s_LeftHandPositions[t_NumFingers * t_NumJoints]{
+		CreateManusVec3(0.025320f, -0.024950f, 0.000000f),									   // Thumb CMC joint
+		CreateManusVec3(0.025320f + 0.032742f, -0.024950f, 0.000000f),						   // Thumb MCP joint
+		CreateManusVec3(0.025320f + 0.032742f + 0.028739f, -0.024950f, 0.000000f),			   // Thumb IP joint
+		CreateManusVec3(0.025320f + 0.032742f + 0.028739f + 0.028739f, -0.024950f, 0.000000f), // Thumb Tip joint
 
-		CreateManusVec3(0.052904f, -0.011181f, 0.000000f), //Index MCP joint
-		CreateManusVec3(0.052904f + 0.038257f, -0.011181f, 0.000000f), //Index PIP joint
-		CreateManusVec3(0.052904f + 0.038257f + 0.020884f, -0.011181f, 0.000000f), //Index DIP joint
-		CreateManusVec3(0.052904f + 0.038257f + 0.020884f + 0.018759f, -0.011181f, 0.000000f), //Index Tip joint
+		CreateManusVec3(0.052904f, -0.011181f, 0.000000f),									   // Index MCP joint
+		CreateManusVec3(0.052904f + 0.038257f, -0.011181f, 0.000000f),						   // Index PIP joint
+		CreateManusVec3(0.052904f + 0.038257f + 0.020884f, -0.011181f, 0.000000f),			   // Index DIP joint
+		CreateManusVec3(0.052904f + 0.038257f + 0.020884f + 0.018759f, -0.011181f, 0.000000f), // Index Tip joint
 
-		CreateManusVec3(0.051287f, 0.000000f, 0.000000f),  //Middle MCP joint
-		CreateManusVec3(0.051287f + 0.041861f, 0.000000f, 0.000000f),  //Middle PIP joint
-		CreateManusVec3(0.051287f + 0.041861f + 0.024766f, 0.000000f, 0.000000f),  //Middle DIP joint
-		CreateManusVec3(0.051287f + 0.041861f + 0.024766f + 0.019683f, 0.000000f, 0.000000f),  //Middle Tip joint
-														   
-		CreateManusVec3(0.049802f, 0.011274f, 0.000000f ), //Ring MCP joint
-		CreateManusVec3(0.049802f + 0.039736f, 0.011274f, 0.000000f),  //Ring PIP joint
-		CreateManusVec3(0.049802f + 0.039736f + 0.023564f, 0.011274f, 0.000000f),  //Ring DIP joint
-		CreateManusVec3(0.049802f + 0.039736f + 0.023564f + 0.019868f, 0.011274f, 0.000000f),  //Ring Tip joint
-														   
-		CreateManusVec3(0.047309f, 0.020145f,0.000000f),   //Pinky MCP joint
-		CreateManusVec3(0.047309f + 0.033175f, 0.020145f, 0.000000f),  //Pinky PIP joint
-		CreateManusVec3(0.047309f + 0.033175f + 0.018020f, 0.020145f, 0.000000f),  //Pinky DIP joint
-		CreateManusVec3(0.047309f + 0.033175f + 0.018020f + 0.019129f, 0.020145f, 0.000000f),  //Pinky Tip joint
+		CreateManusVec3(0.051287f, 0.000000f, 0.000000f),									  // Middle MCP joint
+		CreateManusVec3(0.051287f + 0.041861f, 0.000000f, 0.000000f),						  // Middle PIP joint
+		CreateManusVec3(0.051287f + 0.041861f + 0.024766f, 0.000000f, 0.000000f),			  // Middle DIP joint
+		CreateManusVec3(0.051287f + 0.041861f + 0.024766f + 0.019683f, 0.000000f, 0.000000f), // Middle Tip joint
+
+		CreateManusVec3(0.049802f, 0.011274f, 0.000000f),									  // Ring MCP joint
+		CreateManusVec3(0.049802f + 0.039736f, 0.011274f, 0.000000f),						  // Ring PIP joint
+		CreateManusVec3(0.049802f + 0.039736f + 0.023564f, 0.011274f, 0.000000f),			  // Ring DIP joint
+		CreateManusVec3(0.049802f + 0.039736f + 0.023564f + 0.019868f, 0.011274f, 0.000000f), // Ring Tip joint
+
+		CreateManusVec3(0.047309f, 0.020145f, 0.000000f),									  // Pinky MCP joint
+		CreateManusVec3(0.047309f + 0.033175f, 0.020145f, 0.000000f),						  // Pinky PIP joint
+		CreateManusVec3(0.047309f + 0.033175f + 0.018020f, 0.020145f, 0.000000f),			  // Pinky DIP joint
+		CreateManusVec3(0.047309f + 0.033175f + 0.018020f + 0.019129f, 0.020145f, 0.000000f), // Pinky Tip joint
 	};
 
-	static ManusVec3 s_RightHandPositions[t_NumFingers * t_NumJoints]
-	{
-		CreateManusVec3(0.025320f, 0.024950f, 0.000000f), //Thumb CMC joint
-		CreateManusVec3(0.025320f + 0.032742f, 0.024950f, 0.000000f), //Thumb MCP joint
-		CreateManusVec3(0.025320f + 0.032742f + 0.028739f, 0.024950f, 0.000000f), //Thumb IP joint
-		CreateManusVec3(0.025320f + 0.032742f + 0.028739f + 0.028739f, 0.024950f, 0.000000f), //Thumb Tip joint
+	static ManusVec3 s_RightHandPositions[t_NumFingers * t_NumJoints]{
+		CreateManusVec3(0.025320f, 0.024950f, 0.000000f),									  // Thumb CMC joint
+		CreateManusVec3(0.025320f + 0.032742f, 0.024950f, 0.000000f),						  // Thumb MCP joint
+		CreateManusVec3(0.025320f + 0.032742f + 0.028739f, 0.024950f, 0.000000f),			  // Thumb IP joint
+		CreateManusVec3(0.025320f + 0.032742f + 0.028739f + 0.028739f, 0.024950f, 0.000000f), // Thumb Tip joint
 
-		CreateManusVec3(0.052904f, 0.011181f, 0.000000f), //Index MCP joint
-		CreateManusVec3(0.052904f + 0.038257f, 0.011181f, 0.000000f), //Index PIP joint
-		CreateManusVec3(0.052904f + 0.038257f + 0.020884f, 0.011181f, 0.000000f), //Index DIP joint
-		CreateManusVec3(0.052904f + 0.038257f + 0.020884f + 0.018759f, 0.011181f, 0.000000f), //Index Tip joint
+		CreateManusVec3(0.052904f, 0.011181f, 0.000000f),									  // Index MCP joint
+		CreateManusVec3(0.052904f + 0.038257f, 0.011181f, 0.000000f),						  // Index PIP joint
+		CreateManusVec3(0.052904f + 0.038257f + 0.020884f, 0.011181f, 0.000000f),			  // Index DIP joint
+		CreateManusVec3(0.052904f + 0.038257f + 0.020884f + 0.018759f, 0.011181f, 0.000000f), // Index Tip joint
 
-		CreateManusVec3(0.051287f, 0.000000f, 0.000000f), //Middle MCP joint
-		CreateManusVec3(0.051287f + 0.041861f, 0.000000f, 0.000000f), //Middle PIP joint
-		CreateManusVec3(0.051287f + 0.041861f + 0.024766f, 0.000000f, 0.000000f), //Middle DIP joint
-		CreateManusVec3(0.051287f + 0.041861f + 0.024766f + 0.019683f, 0.000000f, 0.000000f), //Middle Tip joint
+		CreateManusVec3(0.051287f, 0.000000f, 0.000000f),									  // Middle MCP joint
+		CreateManusVec3(0.051287f + 0.041861f, 0.000000f, 0.000000f),						  // Middle PIP joint
+		CreateManusVec3(0.051287f + 0.041861f + 0.024766f, 0.000000f, 0.000000f),			  // Middle DIP joint
+		CreateManusVec3(0.051287f + 0.041861f + 0.024766f + 0.019683f, 0.000000f, 0.000000f), // Middle Tip joint
 
-		CreateManusVec3(0.049802f, -0.011274f, 0.000000f),//Ring MCP joint
-		CreateManusVec3(0.049802f + 0.039736f, -0.011274f, 0.000000f), //Ring PIP joint
-		CreateManusVec3(0.049802f + 0.039736f + 0.023564f, -0.011274f, 0.000000f), //Ring DIP joint
-		CreateManusVec3(0.049802f + 0.039736f + 0.023564f + 0.019868f, -0.011274f, 0.000000f), //Ring Tip joint
+		CreateManusVec3(0.049802f, -0.011274f, 0.000000f),									   // Ring MCP joint
+		CreateManusVec3(0.049802f + 0.039736f, -0.011274f, 0.000000f),						   // Ring PIP joint
+		CreateManusVec3(0.049802f + 0.039736f + 0.023564f, -0.011274f, 0.000000f),			   // Ring DIP joint
+		CreateManusVec3(0.049802f + 0.039736f + 0.023564f + 0.019868f, -0.011274f, 0.000000f), // Ring Tip joint
 
-		CreateManusVec3(0.047309f, -0.020145f, 0.000000f),//Pinky MCP joint
-		CreateManusVec3(0.047309f + 0.033175f, -0.020145f, 0.000000f), //Pinky PIP joint
-		CreateManusVec3(0.047309f + 0.033175f + 0.018020f, -0.020145f, 0.000000f), //Pinky DIP joint
-		CreateManusVec3(0.047309f + 0.033175f + 0.018020f + 0.019129f, -0.020145f, 0.000000f), //Pinky Tip joint
+		CreateManusVec3(0.047309f, -0.020145f, 0.000000f),									   // Pinky MCP joint
+		CreateManusVec3(0.047309f + 0.033175f, -0.020145f, 0.000000f),						   // Pinky PIP joint
+		CreateManusVec3(0.047309f + 0.033175f + 0.018020f, -0.020145f, 0.000000f),			   // Pinky DIP joint
+		CreateManusVec3(0.047309f + 0.033175f + 0.018020f + 0.019129f, -0.020145f, 0.000000f), // Pinky Tip joint
 	};
 
-	// Create an array with the initial position of each hand node. 
+	// Create an array with the initial position of each hand node.
 	// Note, these values are just an example of node positions and refer to the hand laying on a flat surface.
-	ManusVec3* t_Fingers;
+	ManusVec3 *t_Fingers;
 	if (p_Side == Side::Side_Left)
 	{
 		t_Fingers = s_LeftHandPositions;
@@ -2359,7 +2431,7 @@ bool SDKClient::SetupHandNodes(uint32_t p_SklIndex, Side p_Side)
 	// skeleton entry is already done. just the nodes now.
 	// setup a very simple node hierarchy for fingers
 	// first setup the root node
-	// 
+	//
 	// root, This node has ID 0 and parent ID 0, to indicate it has no parent.
 	SDKReturnCode t_Res = CoreSdk_AddNodeToSkeletonSetup(p_SklIndex, CreateNodeSetup(0, 0, 0, 0, 0, "Hand"));
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2402,8 +2474,8 @@ bool SDKClient::SetupHandChains(uint32_t p_SklIndex, Side p_Side)
 		ChainSettings_Init(&t_ChainSettings);
 		t_ChainSettings.usedSettings = ChainType::ChainType_Hand;
 		t_ChainSettings.hand.handMotion = HandMotion::HandMotion_IMU;
-		t_ChainSettings.hand.fingerChainIdsUsed = 5; //we will have 5 fingers
-		t_ChainSettings.hand.fingerChainIds[0] = 1; //links to the other chains we will define further down
+		t_ChainSettings.hand.fingerChainIdsUsed = 5; // we will have 5 fingers
+		t_ChainSettings.hand.fingerChainIds[0] = 1;	 // links to the other chains we will define further down
 		t_ChainSettings.hand.fingerChainIds[1] = 2;
 		t_ChainSettings.hand.fingerChainIds[2] = 3;
 		t_ChainSettings.hand.fingerChainIds[3] = 4;
@@ -2411,13 +2483,13 @@ bool SDKClient::SetupHandChains(uint32_t p_SklIndex, Side p_Side)
 
 		ChainSetup t_Chain;
 		ChainSetup_Init(&t_Chain);
-		t_Chain.id = 0; //Every ID needs to be unique per chain in a skeleton.
+		t_Chain.id = 0; // Every ID needs to be unique per chain in a skeleton.
 		t_Chain.type = ChainType::ChainType_Hand;
 		t_Chain.dataType = ChainType::ChainType_Hand;
 		t_Chain.side = p_Side;
 		t_Chain.dataIndex = 0;
 		t_Chain.nodeIdCount = 1;
-		t_Chain.nodeIds[0] = 0; //this links to the hand node created in the SetupHandNodes
+		t_Chain.nodeIds[0] = 0; // this links to the hand node created in the SetupHandNodes
 		t_Chain.settings = t_ChainSettings;
 
 		SDKReturnCode t_Res = CoreSdk_AddChainToSkeletonSetup(p_SklIndex, t_Chain);
@@ -2429,43 +2501,43 @@ bool SDKClient::SetupHandChains(uint32_t p_SklIndex, Side p_Side)
 	}
 
 	// Add the 5 finger chains
-	const ChainType t_FingerTypes[5] = { ChainType::ChainType_FingerThumb,
-		ChainType::ChainType_FingerIndex,
-		ChainType::ChainType_FingerMiddle,
-		ChainType::ChainType_FingerRing,
-		ChainType::ChainType_FingerPinky };
+	const ChainType t_FingerTypes[5] = {ChainType::ChainType_FingerThumb,
+										ChainType::ChainType_FingerIndex,
+										ChainType::ChainType_FingerMiddle,
+										ChainType::ChainType_FingerRing,
+										ChainType::ChainType_FingerPinky};
 	for (int i = 0; i < 5; i++)
 	{
 		ChainSettings t_ChainSettings;
 		ChainSettings_Init(&t_ChainSettings);
 		t_ChainSettings.usedSettings = t_FingerTypes[i];
-		t_ChainSettings.finger.handChainId = 0; //This links to the wrist chain above.
-		//This identifies the metacarpal bone, if none exists, or the chain is a thumb it should be set to -1.
-		//The metacarpal bone should not be part of the finger chain, unless you are defining a thumb which does need it.
+		t_ChainSettings.finger.handChainId = 0; // This links to the wrist chain above.
+		// This identifies the metacarpal bone, if none exists, or the chain is a thumb it should be set to -1.
+		// The metacarpal bone should not be part of the finger chain, unless you are defining a thumb which does need it.
 		t_ChainSettings.finger.metacarpalBoneId = -1;
-		t_ChainSettings.finger.useLeafAtEnd = false; //this is set to true if there is a leaf bone to the tip of the finger.
+		t_ChainSettings.finger.useLeafAtEnd = false; // this is set to true if there is a leaf bone to the tip of the finger.
 		ChainSetup t_Chain;
 		ChainSetup_Init(&t_Chain);
-		t_Chain.id = i + 1; //Every ID needs to be unique per chain in a skeleton.
+		t_Chain.id = i + 1; // Every ID needs to be unique per chain in a skeleton.
 		t_Chain.type = t_FingerTypes[i];
 		t_Chain.dataType = t_FingerTypes[i];
 		t_Chain.side = p_Side;
 		t_Chain.dataIndex = 0;
 		if (i == 0) // Thumb
 		{
-			t_Chain.nodeIdCount = 4; //The amount of node id's used in the array
-			t_Chain.nodeIds[0] = 1; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[1] = 2; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[2] = 3; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[3] = 4; //this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIdCount = 4; // The amount of node id's used in the array
+			t_Chain.nodeIds[0] = 1;	 // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[1] = 2;	 // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[2] = 3;	 // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[3] = 4;	 // this links to the hand node created in the SetupHandNodes
 		}
 		else // All other fingers
 		{
-			t_Chain.nodeIdCount = 4; //The amount of node id's used in the array
-			t_Chain.nodeIds[0] = (i * 4) + 1; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[1] = (i * 4) + 2; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[2] = (i * 4) + 3; //this links to the hand node created in the SetupHandNodes
-			t_Chain.nodeIds[3] = (i * 4) + 4; //this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIdCount = 4;		  // The amount of node id's used in the array
+			t_Chain.nodeIds[0] = (i * 4) + 1; // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[1] = (i * 4) + 2; // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[2] = (i * 4) + 3; // this links to the hand node created in the SetupHandNodes
+			t_Chain.nodeIds[3] = (i * 4) + 4; // this links to the hand node created in the SetupHandNodes
 		}
 		t_Chain.settings = t_ChainSettings;
 
@@ -2494,8 +2566,8 @@ void SDKClient::LoadTestSkeleton(Side p_Side)
 	t_SKL.settings.scaleToTarget = true;
 	t_SKL.settings.useEndPointApproximations = true;
 	t_SKL.settings.targetType = SkeletonTargetType::SkeletonTargetType_UserIndexData;
-	//If the user does not exist then the added skeleton will not be animated.
-	//Same goes for any other skeleton made for invalid users/gloves.
+	// If the user does not exist then the added skeleton will not be animated.
+	// Same goes for any other skeleton made for invalid users/gloves.
 	t_SKL.settings.skeletonTargetUserIndexData.userIndex = 0;
 
 	CopyString(t_SKL.name, sizeof(t_SKL.name), p_Side == Side::Side_Left ? std::string("LeftHand") : std::string("RightHand"));
@@ -2509,15 +2581,17 @@ void SDKClient::LoadTestSkeleton(Side p_Side)
 	m_TemporarySkeletons.push_back(t_SklIndex);
 
 	// setup nodes and chains for the skeleton hand
-	if (!SetupHandNodes(t_SklIndex, p_Side)) return;
-	if (!SetupHandChains(t_SklIndex, p_Side)) return;
+	if (!SetupHandNodes(t_SklIndex, p_Side))
+		return;
+	if (!SetupHandChains(t_SklIndex, p_Side))
+		return;
 
 	if (m_SendToDevTools)
 	{
 		SendLoadedSkeleton(t_SklIndex);
 	}
 
-	// load skeleton 
+	// load skeleton
 	uint32_t t_ID = 0;
 	t_Res = CoreSdk_LoadSkeleton(t_SklIndex, &t_ID);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2534,7 +2608,7 @@ void SDKClient::LoadTestSkeleton(Side p_Side)
 	m_LoadedSkeletons.push_back(t_ID);
 }
 
-/// @brief This support function is used to unload a skeleton from Core. 
+/// @brief This support function is used to unload a skeleton from Core.
 void SDKClient::UnloadTestSkeleton()
 {
 	if (m_LoadedSkeletons.size() == 0)
@@ -2557,14 +2631,13 @@ void SDKClient::UnloadTestSkeleton()
 /// This function saves the temporary skeleton with the given session ID and returns an error if the operation fails.
 void SDKClient::SendLoadedSkeleton(uint32_t p_SklIndex)
 {
-	// save the temporary skeleton 
+	// save the temporary skeleton
 	SDKReturnCode t_Res = CoreSdk_SaveTemporarySkeleton(p_SklIndex, m_SessionId, true);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
 		ClientLog::error("Failed to save temporary skeleton. The error given was {}.", (int32_t)t_Res);
 	}
 }
-
 
 /// @brief This support function sets up an incomplete hand skeleton and then uses manus core to allocate chains for it.
 void SDKClient::AllocateChains()
@@ -2597,7 +2670,7 @@ void SDKClient::AllocateChains()
 	// setup nodes for the skeleton hand
 	SetupHandNodes(t_SklIndex, Side::Side_Left);
 
-	// allocate chains for skeleton 
+	// allocate chains for skeleton
 	t_Res = CoreSdk_AllocateChainsForSkeletonSetup(t_SklIndex);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2614,7 +2687,7 @@ void SDKClient::AllocateChains()
 		return;
 	}
 
-	ChainSetup* t_Chains = new ChainSetup[t_SkeletonInfo.chainsCount];
+	ChainSetup *t_Chains = new ChainSetup[t_SkeletonInfo.chainsCount];
 	// now get the chain data
 	t_Res = CoreSdk_GetSkeletonSetupChainsArray(t_SklIndex, t_Chains, t_SkeletonInfo.chainsCount);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2632,7 +2705,7 @@ void SDKClient::AllocateChains()
 	{
 		if (t_Chains[i].dataType == ChainType::ChainType_Hand)
 		{
-			t_Chains[i].side = Side::Side_Left; // we're just picking a side here. 
+			t_Chains[i].side = Side::Side_Left; // we're just picking a side here.
 
 			t_Res = CoreSdk_OverwriteChainToSkeletonSetup(t_SklIndex, t_Chains[i]);
 			if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2647,7 +2720,7 @@ void SDKClient::AllocateChains()
 	// cleanup
 	delete[] t_Chains;
 
-	// load skeleton so it is done. 
+	// load skeleton so it is done.
 	uint32_t t_ID = 0;
 	t_Res = CoreSdk_LoadSkeleton(t_SklIndex, &t_ID);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2667,17 +2740,17 @@ void SDKClient::AllocateChains()
 /// @brief This support function is used for the manual allocation of the skeleton chains with means of a temporary skeleton.
 /// Temporary Skeletons can be helpful when the user wants to modify the skeletons chains or nodes more than once before retargeting,
 /// as they can be saved in core and retrieved later by the user to apply further modifications. This can be done easily with means of the Dev Tools.
-/// The current function contains an example that shows how to create a temporary skeleton, modify its chains, nodes and 
+/// The current function contains an example that shows how to create a temporary skeleton, modify its chains, nodes and
 /// skeleton info, and save it into Core. This process should be used during development.
-/// After that, the final skeleton should be loaded into core for retargeting and for getting the actual data,as displayed in the LoadTestSkeleton 
+/// After that, the final skeleton should be loaded into core for retargeting and for getting the actual data,as displayed in the LoadTestSkeleton
 /// function.
 void SDKClient::BuildTemporarySkeleton()
 {
-	// define the session Id for which we want to save  
+	// define the session Id for which we want to save
 	// in this example we want to save a skeleton for the current session so we use our own Session Id
 	uint32_t t_SessionId = m_SessionId;
 
-	bool t_IsSkeletonModified = false; // this bool is set to true by the Dev Tools after saving any modification to the skeleton, 
+	bool t_IsSkeletonModified = false; // this bool is set to true by the Dev Tools after saving any modification to the skeleton,
 	// this triggers the OnSyStemCallback which is used in the SDK to be notified about a change to its temporary skeletons.
 	// for the purpose of this example setting this bool to true is not really necessary.
 
@@ -2704,7 +2777,7 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 	m_TemporarySkeletons.push_back(t_SklIndex);
-	//Add 3 nodes to the skeleton setup
+	// Add 3 nodes to the skeleton setup
 	t_Res = CoreSdk_AddNodeToSkeletonSetup(t_SklIndex, CreateNodeSetup(0, 0, 0, 0, 0, "root"));
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2726,7 +2799,7 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 
-	//Add one chain of type Leg to the skeleton setup
+	// Add one chain of type Leg to the skeleton setup
 	ChainSettings t_ChainSettings;
 	ChainSettings_Init(&t_ChainSettings);
 	t_ChainSettings.usedSettings = ChainType::ChainType_Leg;
@@ -2755,7 +2828,7 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 
-	// save the temporary skeleton 
+	// save the temporary skeleton
 	t_Res = CoreSdk_SaveTemporarySkeleton(t_SklIndex, t_SessionId, t_IsSkeletonModified);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2763,7 +2836,7 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 
-	// if we want to go on with the modifications to the same temporary skeleton 
+	// if we want to go on with the modifications to the same temporary skeleton
 	// get the skeleton
 	t_Res = CoreSdk_GetTemporarySkeleton(t_SklIndex, t_SessionId);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
@@ -2791,7 +2864,7 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 
-	// save the temporary skeleton 
+	// save the temporary skeleton
 	t_Res = CoreSdk_SaveTemporarySkeleton(t_SklIndex, t_SessionId, t_IsSkeletonModified);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2809,7 +2882,7 @@ void SDKClient::BuildTemporarySkeleton()
 	}
 
 	// now get the chain data
-	ChainSetup* t_Chains = new ChainSetup[t_SkeletonInfo.chainsCount];
+	ChainSetup *t_Chains = new ChainSetup[t_SkeletonInfo.chainsCount];
 	t_Res = CoreSdk_GetSkeletonSetupChainsArray(t_SklIndex, t_Chains, t_SkeletonInfo.chainsCount);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2817,8 +2890,8 @@ void SDKClient::BuildTemporarySkeleton()
 		return;
 	}
 
-	// get the node data 
-	NodeSetup* t_Nodes = new NodeSetup[t_SkeletonInfo.nodesCount];
+	// get the node data
+	NodeSetup *t_Nodes = new NodeSetup[t_SkeletonInfo.nodesCount];
 	t_Res = CoreSdk_GetSkeletonSetupNodesArray(t_SklIndex, t_Nodes, t_SkeletonInfo.nodesCount);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2882,8 +2955,8 @@ void SDKClient::BuildTemporarySkeleton()
 	delete[] t_Chains;
 	delete[] t_Nodes;
 
-	// save temporary skeleton 
-	// in the Dev Tools this bool is set to true when saving the temporary skeleton, this triggers OnSystemCallback which 
+	// save temporary skeleton
+	// in the Dev Tools this bool is set to true when saving the temporary skeleton, this triggers OnSystemCallback which
 	// notifies the SDK sessions about a modifications to one of their temporary skeletons.
 	// setting the bool to true in this example is not really necessary, it's just for testing purposes.
 	t_IsSkeletonModified = true;
@@ -2895,7 +2968,7 @@ void SDKClient::BuildTemporarySkeleton()
 	}
 }
 
-/// @brief This support function is used to clear a temporary skeleton from the temporary skeleton list, for example it can be used when the 
+/// @brief This support function is used to clear a temporary skeleton from the temporary skeleton list, for example it can be used when the
 /// max number of temporary skeletons has been reached for a specific session.
 void SDKClient::ClearTemporarySkeleton()
 {
@@ -2915,7 +2988,7 @@ void SDKClient::ClearTemporarySkeleton()
 	m_TemporarySkeletons.erase(m_TemporarySkeletons.begin());
 }
 
-/// @brief This support function is used to clear all temporary skeletons associated to the current SDK session, it can be used when the 
+/// @brief This support function is used to clear all temporary skeletons associated to the current SDK session, it can be used when the
 /// max number of temporary skeletons has been reached for the current session and we want to make room for more.
 void SDKClient::ClearAllTemporarySkeletons()
 {
@@ -2938,7 +3011,7 @@ void SDKClient::SaveTemporarySkeletonToFile()
 	// this example shows how to save a temporary skeleton to a file
 	// first create a temporary skeleton:
 
-	// define the session Id for which we want to save  
+	// define the session Id for which we want to save
 	uint32_t t_SessionId = m_SessionId;
 
 	bool t_IsSkeletonModified = false; // setting this bool to true is not necessary here, it is mostly used by the Dev Tools
@@ -2965,10 +3038,12 @@ void SDKClient::SaveTemporarySkeletonToFile()
 	m_TemporarySkeletons.push_back(t_SklIndex);
 
 	// setup nodes and chains for the skeleton hand
-	if (!SetupHandNodes(t_SklIndex, Side_Left)) return;
-	if (!SetupHandChains(t_SklIndex, Side_Left)) return;
+	if (!SetupHandNodes(t_SklIndex, Side_Left))
+		return;
+	if (!SetupHandChains(t_SklIndex, Side_Left))
+		return;
 
-	// save the temporary skeleton 
+	// save the temporary skeleton
 	t_Res = CoreSdk_SaveTemporarySkeleton(t_SklIndex, t_SessionId, t_IsSkeletonModified);
 	if (t_Res != SDKReturnCode::SDKReturnCode_Success)
 	{
@@ -2985,7 +3060,7 @@ void SDKClient::SaveTemporarySkeletonToFile()
 		ClientLog::error("Failed to compress temporary skeleton and get size. The error given was {}.", (int32_t)t_Res);
 		return;
 	}
-	unsigned char* t_TemporarySkeletonData = new unsigned char[t_TemporarySkeletonLengthInBytes];
+	unsigned char *t_TemporarySkeletonData = new unsigned char[t_TemporarySkeletonLengthInBytes];
 
 	// get the array of bytes with the compressed temporary skeleton data, remember to always call function CoreSdk_CompressTemporarySkeletonAndGetSize
 	// before trying to get the compressed temporary skeleton data
@@ -3003,20 +3078,16 @@ void SDKClient::SaveTemporarySkeletonToFile()
 
 	// create directory name and file name for storing the temporary skeleton
 	std::string t_DirectoryPath =
-		t_DirectoryPathString
-		+ s_SlashForFilesystemPath
-		+ "ManusTemporarySkeleton";
+		t_DirectoryPathString + s_SlashForFilesystemPath + "ManusTemporarySkeleton";
 
 	CreateFolderIfItDoesNotExist(t_DirectoryPath);
 
 	std::string t_DirectoryPathAndFileName =
-		t_DirectoryPath
-		+ s_SlashForFilesystemPath
-		+ "TemporarySkeleton.mskl";
+		t_DirectoryPath + s_SlashForFilesystemPath + "TemporarySkeleton.mskl";
 
 	// write the temporary skeleton data to .mskl file
 	std::ofstream t_File = GetOutputFileStream(t_DirectoryPathAndFileName);
-	t_File.write((char*)t_TemporarySkeletonData, t_TemporarySkeletonLengthInBytes);
+	t_File.write((char *)t_TemporarySkeletonData, t_TemporarySkeletonLengthInBytes);
 	t_File.close();
 
 	t_Res = CoreSdk_ClearTemporarySkeleton(t_SklIndex, t_SessionId);
@@ -3028,7 +3099,6 @@ void SDKClient::SaveTemporarySkeletonToFile()
 	RemoveIndexFromTemporarySkeletonList(t_SklIndex);
 }
 
-
 void SDKClient::GetTemporarySkeletonFromFile()
 {
 	// this example shows how to load a temporary skeleton data from a file
@@ -3039,9 +3109,7 @@ void SDKClient::GetTemporarySkeletonFromFile()
 
 	// check if directory exists
 	std::string t_DirectoryPath =
-		t_DirectoryPathString
-		+ s_SlashForFilesystemPath
-		+ "ManusTemporarySkeleton";
+		t_DirectoryPathString + s_SlashForFilesystemPath + "ManusTemporarySkeleton";
 
 	if (!DoesFolderOrFileExist(t_DirectoryPath))
 	{
@@ -3051,9 +3119,7 @@ void SDKClient::GetTemporarySkeletonFromFile()
 
 	// create string with file name
 	std::string t_DirectoryPathAndFileName =
-		t_DirectoryPath
-		+ s_SlashForFilesystemPath
-		+ "TemporarySkeleton.mskl";
+		t_DirectoryPath + s_SlashForFilesystemPath + "TemporarySkeleton.mskl";
 
 	// read from file
 	std::ifstream t_File = GetInputFileStream(t_DirectoryPathAndFileName);
@@ -3070,10 +3136,9 @@ void SDKClient::GetTemporarySkeletonFromFile()
 	t_File.seekg(0, t_File.beg);
 
 	// get temporary skeleton data from file
-	unsigned char* t_TemporarySkeletonData = new unsigned char[t_FileLength];
-	t_File.read((char*)t_TemporarySkeletonData, t_FileLength);
+	unsigned char *t_TemporarySkeletonData = new unsigned char[t_FileLength];
+	t_File.read((char *)t_TemporarySkeletonData, t_FileLength);
 	t_File.close();
-
 
 	// save the zipped temporary skeleton information, they will be used internally for sending the data to Core
 	uint32_t t_TemporarySkeletonLengthInBytes = t_FileLength;
@@ -3221,7 +3286,7 @@ void SDKClient::UnpairGlove()
 /// @brief Prints the type of the first chain generated by the AllocateChain function, this is used for testing.
 void SDKClient::PrintLogs()
 {
-	std::vector<SDKLog*> t_SDKLogs;
+	std::vector<SDKLog *> t_SDKLogs;
 	s_Instance->m_LogMutex.lock();
 	t_SDKLogs.swap(s_Instance->m_Logs);
 	s_Instance->m_LogMutex.unlock();

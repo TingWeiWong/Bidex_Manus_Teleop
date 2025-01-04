@@ -6,26 +6,26 @@
  *  @{
  */
 
-#include <chrono> // Used for haptic commands.
-#include <cmath> // Used for rounding float values.
+#include <chrono>  // Used for haptic commands.
+#include <cmath>   // Used for rounding float values.
 #include <iomanip> // Used for printing glove data, and converting glove IDs to strings.
-#include <memory> // Used for smart pointers.
+#include <memory>  // Used for smart pointers.
 #include <sstream>
 #include <functional>
 #include <mutex>
 
 #include "ClientPlatformSpecific.hpp"
 #include "ManusSDK.h"
-//ZMQ
+// ZMQ
 #include <zmq.hpp>
-//ZMQ
+// ZMQ
 /// @brief Constant expression: number of hands supported by demo.
 constexpr unsigned int NUMBER_OF_HANDS_SUPPORTED = 2;
 
-/// @brief  Constant expression used to define the time between two possible haptics commands sent 
+/// @brief  Constant expression used to define the time between two possible haptics commands sent
 constexpr unsigned long long int MINIMUM_MILLISECONDS_BETWEEN_HAPTICS_COMMANDS = 20;
 
-/// @brief  Constant expression used to define the time between two updates of the temporary skeleton count printing 
+/// @brief  Constant expression used to define the time between two updates of the temporary skeleton count printing
 constexpr unsigned long long int MILLISECONDS_BETWEEN_TEMPORARY_SKELETONS_UPDATE = 1000;
 
 /// @brief The type of connection to core.
@@ -139,17 +139,17 @@ public:
 	ClientReturnCode Run();
 	ClientReturnCode ShutDown();
 
-	//Callbacks
-	static void OnConnectedCallback(const ManusHost* const p_Host);
-	static void OnDisconnectedCallback(const ManusHost* const p_Host);
-	static void OnLogCallback(LogSeverity p_Severity, const char* const p_Log, uint32_t p_Length);
-	static void OnSkeletonStreamCallback(const SkeletonStreamInfo* const p_Skeleton);
-	static void OnLandscapeCallback(const Landscape* const p_Landscape);
-	static void OnSystemCallback(const SystemMessage* const p_SystemMessage);
-	static void OnErgonomicsCallback(const ErgonomicsStream* const p_Ergo);
-	static void OnRawSkeletonStreamCallback(const SkeletonStreamInfo* const p_RawSkeletonStreamInfo);
-	static void OnTrackerStreamCallback(const TrackerStreamInfo* const p_TrackerStreamInfo);
-	static void OnGestureStreamCallback(const GestureStreamInfo* const p_GestureStream);
+	// Callbacks
+	static void OnConnectedCallback(const ManusHost *const p_Host);
+	static void OnDisconnectedCallback(const ManusHost *const p_Host);
+	static void OnLogCallback(LogSeverity p_Severity, const char *const p_Log, uint32_t p_Length);
+	static void OnSkeletonStreamCallback(const SkeletonStreamInfo *const p_Skeleton);
+	static void OnLandscapeCallback(const Landscape *const p_Landscape);
+	static void OnSystemCallback(const SystemMessage *const p_SystemMessage);
+	static void OnErgonomicsCallback(const ErgonomicsStream *const p_Ergo);
+	static void OnRawSkeletonStreamCallback(const SkeletonStreamInfo *const p_RawSkeletonStreamInfo);
+	static void OnTrackerStreamCallback(const TrackerStreamInfo *const p_TrackerStreamInfo);
+	static void OnGestureStreamCallback(const GestureStreamInfo *const p_GestureStream);
 
 	float RoundFloatValue(float p_Value, int p_NumDecimalsToKeep);
 	void AdvanceConsolePosition(short int p_Y);
@@ -163,7 +163,7 @@ protected:
 	virtual ClientReturnCode NoHostsFound();
 	virtual ClientReturnCode PickingHost();
 	virtual ClientReturnCode ConnectingToCore();
-	
+
 	virtual ClientReturnCode UpdateBeforeDisplayingData();
 
 	virtual ClientReturnCode DisplayingData();
@@ -179,20 +179,19 @@ protected:
 	virtual ClientReturnCode DisconnectedFromCore();
 	virtual ClientReturnCode ReconnectingToCore(int32_t p_ReconnectionTime = 0, int32_t p_ReconnectionAttempts = 0);
 
-	void PrintHandErgoData(ErgonomicsData& p_ErgoData, bool p_Left);
+	void PrintHandErgoData(ErgonomicsData &p_ErgoData, bool p_Left);
 	void PrintErgonomicsData();
 	void PrintDongleData();
 	void PrintSystemMessage();
 	void PrintSkeletonData();
 	void PrintRawSkeletonData();
 
-
 	void PrintTrackerData();
 	void PrintTrackerDataGlobal();
 	void PrintTrackerDataPerUser();
 
 	void PrintLandscapeTimeData();
-	
+
 	void PrintGestureData();
 	void PrintGloveCalibrationData();
 
@@ -239,12 +238,12 @@ protected:
 	void PrintLogs();
 
 protected:
-	static SDKClient* s_Instance;
+	static SDKClient *s_Instance;
 
 	bool m_RequestedExit = false;
 	ConnectionType m_ConnectionType = ConnectionType::ConnectionType_Invalid;
 
-	//Console
+	// Console
 	uint32_t m_ConsoleClearTickCount = 0;
 	const short int m_ConsoleWidth = 220;
 	const short int m_ConsoleHeight = 55;
@@ -269,10 +268,10 @@ protected:
 	std::unique_ptr<ManusHost[]> m_AvailableHosts = nullptr;
 	std::unique_ptr<ManusHost> m_Host;
 
-	//Data
+	// Data
 	uint32_t m_SessionId = 0;
 
-	bool m_RumblingWrist[NUMBER_OF_HANDS_SUPPORTED] = { false, false };
+	bool m_RumblingWrist[NUMBER_OF_HANDS_SUPPORTED] = {false, false};
 
 	std::vector<uint32_t> m_LoadedSkeletons;
 	std::vector<uint32_t> m_TemporarySkeletons;
@@ -280,16 +279,16 @@ protected:
 	std::mutex m_SkeletonMutex;
 	std::mutex m_RawSkeletonMutex;
 
-	ClientSkeletonCollection* m_NextSkeleton = nullptr;
-	ClientSkeletonCollection* m_Skeleton = nullptr;
+	ClientSkeletonCollection *m_NextSkeleton = nullptr;
+	ClientSkeletonCollection *m_Skeleton = nullptr;
 
-	ClientRawSkeletonCollection* m_NextRawSkeleton = nullptr;
-	ClientRawSkeletonCollection* m_RawSkeleton = nullptr;
+	ClientRawSkeletonCollection *m_NextRawSkeleton = nullptr;
+	ClientRawSkeletonCollection *m_RawSkeleton = nullptr;
 
 	std::mutex m_TrackerMutex;
 
-	TrackerDataCollection* m_NextTrackerData = nullptr;
-	TrackerDataCollection* m_TrackerData = nullptr;
+	TrackerDataCollection *m_NextTrackerData = nullptr;
+	TrackerDataCollection *m_TrackerData = nullptr;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_TimeSinceLastDisconnect;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_LastTemporarySkeletonUpdate = std::chrono::high_resolution_clock::now();
@@ -310,8 +309,8 @@ protected:
 	float m_TrackerOffset = 0.0f;
 
 	std::mutex m_LandscapeMutex;
-	Landscape* m_NewLandscape = nullptr;
-	Landscape* m_Landscape = nullptr;
+	Landscape *m_NewLandscape = nullptr;
+	Landscape *m_Landscape = nullptr;
 	std::vector<GestureLandscapeData> m_NewGestureLandscapeData;
 	std::vector<GestureLandscapeData> m_GestureLandscapeData;
 
@@ -319,11 +318,11 @@ protected:
 	uint32_t m_FirstRightGloveID = 0;
 
 	std::mutex m_GestureMutex;
-	ClientGestures* m_NewFirstLeftGloveGestures = nullptr;
-	ClientGestures* m_FirstLeftGloveGestures = nullptr;
+	ClientGestures *m_NewFirstLeftGloveGestures = nullptr;
+	ClientGestures *m_FirstLeftGloveGestures = nullptr;
 
-	ClientGestures* m_NewFirstRightGloveGestures = nullptr;
-	ClientGestures* m_FirstRightGloveGestures = nullptr;
+	ClientGestures *m_NewFirstRightGloveGestures = nullptr;
+	ClientGestures *m_FirstRightGloveGestures = nullptr;
 
 	bool m_ShowLeftGestures = true;
 
@@ -338,13 +337,13 @@ protected:
 	bool m_SendToDevTools = false;
 
 	std::mutex m_LogMutex;
-	std::vector<SDKLog*> m_Logs;
+	std::vector<SDKLog *> m_Logs;
 
-	//ZMQ
+	// ZMQ
 	char char_buf[512];
-	zmq::context_t ctx;      // Context for ZMQ
-	zmq::socket_t sock;      // Socket for ZMQ
-	//ZMQ
+	zmq::context_t ctx, ctx_ergo;  // Context for ZMQ
+	zmq::socket_t sock, sock_ergo; // Socket for ZMQ
+								   // ZMQ
 };
 
 // Close the Doxygen group.
