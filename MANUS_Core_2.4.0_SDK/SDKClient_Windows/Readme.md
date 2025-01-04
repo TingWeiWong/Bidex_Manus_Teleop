@@ -21,3 +21,7 @@ You will need to download them manually from ManusCore.
 1. Go to `Network Settings` -> `Adapter 1` -> `Attached to`.  
 2. Select `Bridged Adapter` and connect it to the Ethernet of your host PC (e.g., `enp5s0`).
 3. Also set network inbound/outbound of 8000 port to allow all connections.
+
+### MISC
+1. Make sure to allocate enough RAM for VirtualBox, otherwise there might be memory exception errors (from libZMQ).
+2. Make sure the ManusCore is running in the background
