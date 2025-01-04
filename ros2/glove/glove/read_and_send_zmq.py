@@ -15,19 +15,40 @@ The full skeleton is the xyz quaternion of every single joint in the hand estima
 Note, currently if you are using Windows, there is a different joint ordering than with Linux.  In Windows it is thumb to pinky in finger order, but on Linux it jumps around. Please see "short_idx" for details.  
 '''
 
-IP_ADDRESS = "tcp://192.168.1.97:8000"
+SKELETON_IP_ADDRESS = "tcp://192.168.1.97:8000"
+ERGO_IP_ADDRESS = "tcp://192.168.1.97:8001"
 LEFT_GLOVE_SN = "b8852964"
 RIGHT_GLOVE_SN = "6bb82ce1"
+
+# There are 25 skeletons per hand, 7 values per joint (x,y,z, quaternion), total 175 values per hand
+# The first value is the serial number of the glove
+skel_len = 176
+
+# Ergonomics data has 20 values per hand
+ergo_len = 20
+
+# For computing inverse kinematics, we only need the fingertip and the previous joint xyz
+# However, Windows and Linux have different joint orderings for the gloves (Windows in order)
+# Linux: pinky, thumb, index, ring, middle
+using_Linux = False
+if using_Linux:
+    short_idx = [23, 24, 4, 5, 9, 10, 19, 20, 14, 15]
+else:
+    short_idx = [3, 4, 8, 9, 13, 14, 18, 19, 23, 24]
 
 
 class GloveReader(Node):
     def __init__(self):
         super().__init__('glove_reader')
         # Connect to Server
-        context = zmq.Context()
-        self.socket = context.socket(zmq.PULL)
-        self.socket.setsockopt(zmq.CONFLATE, True)
-        self.socket.connect(IP_ADDRESS)
+        context_skel = zmq.Context()
+        context_ergo = zmq.Context()
+        self.socket_skel = context_skel.socket(zmq.PULL)
+        self.socket_erog = context_ergo.socket(zmq.PULL)
+        self.socket_skel.setsockopt(zmq.CONFLATE, True)
+        self.socket_erog.setsockopt(zmq.CONFLATE, True)
+        self.socket_skel.connect(SKELETON_IP_ADDRESS)
+        self.socket_erog.connect(ERGO_IP_ADDRESS)
         self.pub_left = self.create_publisher(
             JointState, "/glove/l_joints", 10)
         self.pub_right = self.create_publisher(
@@ -46,9 +67,14 @@ class GloveReader(Node):
         self.left_glove_sn = LEFT_GLOVE_SN
         self.right_glove_sn = RIGHT_GLOVE_SN
 
-    # If you set a flag in the C++ code, you can send all the data that comes from the raw skeleton of the glove.  This data is from thumb to pinky, across all joints from palm to fingertip.   This can slow things down though
+    # If you set a flag in the C++ code, you can send all the data that comes from the raw skeleton of the glove.
+    # This data is from thumb to pinky, across all joints from palm to fingertip.   This can slow things down though
 
     def parse_full_skeleton_and_send(self, data):
+        """
+        Inside SDKClient.cpp function OnRawSkeletonStreamCallback,
+        the flag full is set to true by default.
+        """
         skeleton_list = []
         for i in range(0, 25):
             # the first ID is right or left glove don't forget
@@ -71,10 +97,6 @@ class GloveReader(Node):
 
     def parse_short_skeleton_and_send(self, data):
         output_array_msg = PoseArray()
-        short_idx = [3, 4, 8, 9, 13, 14, 18, 19, 23, 24]
-        # Right now the integrated mode is in a different ordering, pinky, thumb, index, ring, middle
-        # Will be fixed to match the SDK in a future release
-        # short_idx = [23, 24, 4, 5, 9, 10, 19, 20, 14, 15]
         for i in short_idx:
             # the first ID is right or left glove don't forget
             position = Point(
@@ -97,34 +119,48 @@ def main(args=None):
     glove_reader = GloveReader()
     while rclpy.ok():
         rclpy.spin_once(glove_reader, timeout_sec=0)
-        message = glove_reader.socket.recv()
-        # receive the message from the socket
-        message = message.decode('utf-8')
-        data = message.split(",")
-        if data is not None:
+        # Read skeleton data first
+        message_skel = glove_reader.socket_skel.recv()
+        # receive the message_skel from the socket
+        message_skel = message_skel.decode('utf-8')
+        data_skel = message_skel.split(",")
+        if data_skel is not None:
             try:
-                # If joint level data
-                if len(data) == 40:
-                    stater_msg = JointState()
-                    stater_msg.position = list(map(float, data[0:20]))
-                    glove_reader.pub_left.publish(stater_msg)
-                    stater_msg.position = list(map(float, data[20:40]))
-                    glove_reader.pub_right.publish(stater_msg)
                 # If full skeleton data two hands
-                elif len(data) == 352:
-                    glove_reader.parse_full_skeleton_and_send(data[0:176])
-                    glove_reader.parse_full_skeleton_and_send(data[176:352])
-                    glove_reader.parse_short_skeleton_and_send(data[0:176])
-                    glove_reader.parse_short_skeleton_and_send(data[176:352])
-                # If full skeleton data one hand
-                elif len(data) == 176:
-                    glove_reader.parse_full_skeleton_and_send(data[0:176])
-                    glove_reader.parse_short_skeleton_and_send(data[0:176])
+                if len(data_skel) == skel_len * 2:
+                    glove_reader.parse_full_skeleton_and_send(
+                        data_skel[0:skel_len])
+                    glove_reader.parse_full_skeleton_and_send(
+                        data_skel[skel_len:skel_len * 2])
+                    glove_reader.parse_short_skeleton_and_send(
+                        data_skel[0:skel_len])
+                    glove_reader.parse_short_skeleton_and_send(
+                        data_skel[skel_len:skel_len * 2])
+                # If full skeleton data_skel one hand
+                elif len(data_skel) == skel_len:
+                    glove_reader.parse_full_skeleton_and_send(
+                        data_skel[0:skel_len])
+                    glove_reader.parse_short_skeleton_and_send(
+                        data_skel[0:skel_len])
             except KeyboardInterrupt as e:
                 return
             except Exception as e:
-                print(e)
-                pass
+                print("Exception reading skeleton data: ", e)
+
+        # Read ergonomics data
+        message_ergo = glove_reader.socket_erog.recv()
+        message_ergo = message_ergo.decode('utf-8')
+        data_ergo = message_ergo.split(",")
+        # If joint level data
+        if len(data_ergo) == ergo_len * 2:
+            stater_msg = JointState()
+            stater_msg.position = list(map(float, data_ergo[0:ergo_len]))
+            glove_reader.pub_left.publish(stater_msg)
+            stater_msg.position = list(
+                map(float, data_ergo[ergo_len:ergo_len * 2]))
+            glove_reader.pub_right.publish(stater_msg)
+        else:
+            print("Ergonomics data not in correct length: ", len(data_ergo))
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
