@@ -7,8 +7,7 @@ import os
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray
 from sensor_msgs.msg import JointState
-import sys
-from ament_index_python.packages import get_package_share_directory
+
 '''
 This takes the glove data, and runs inverse kinematics and then publishes onto LEAP Hand.
 
@@ -30,11 +29,13 @@ class LeapPybulletIK(Node):
         path_src = os.path.dirname(path_src)
         self.is_left = self.declare_parameter(
             'isLeft', False).get_parameter_value().bool_value
+        print("Using left hand: ", self.is_left)
         self.glove_to_leap_mapping_scale = 1.6
         self.leapEndEffectorIndex = [3, 4, 8, 9, 13, 14, 18, 19]
         if self.is_left:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_left/robot_pybullet.urdf")
+            print("Using left hand URFF")
             # You may have to set this path for your setup on ROS2
             self.LeapId = p.loadURDF(
                 path_src,
@@ -50,6 +51,7 @@ class LeapPybulletIK(Node):
         else:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_right/robot_pybullet.urdf")
+            print("Using right hand URDF")
             # You may have to set this path for your setup on ROS2
             self.LeapId = p.loadURDF(
                 path_src,
@@ -110,18 +112,19 @@ class LeapPybulletIK(Node):
         p.resetBasePositionAndOrientation(
             self.ballMbt[3], hand_pos[1], current_orientation)
 
-    def get_glove_data(self, pose):
+    def get_glove_data(self, pose: PoseArray):
         # gets the data converts it and then computes IK and visualizes
         poses = pose.poses
         hand_pos = []
         for i in range(0, 10):
             hand_pos.append([poses[i].position.x * self.glove_to_leap_mapping_scale * 1.15, poses[i].position.y *
-                            self.glove_to_leap_mapping_scale, -poses[i].position.z * self.glove_to_leap_mapping_scale])
-        # hand_pos[2][0] = hand_pos[2][0] - 0.02  this isn't great because they won't oppose properly
-        # hand_pos[3][0] = hand_pos[3][0] - 0.02
-        # hand_pos[6][0] = hand_pos[6][0] + 0.02
-        # hand_pos[7][0] = hand_pos[7][0] + 0.02
-        # hand_pos[2][1] = hand_pos[2][1] + 0.002
+                            self.glove_to_leap_mapping_scale, poses[i].position.z * self.glove_to_leap_mapping_scale])
+        # this isn't great because they won't oppose properly
+        hand_pos[2][0] = hand_pos[2][0] - 0.02
+        hand_pos[3][0] = hand_pos[3][0] - 0.02
+        hand_pos[6][0] = hand_pos[6][0] + 0.02
+        hand_pos[7][0] = hand_pos[7][0] + 0.02
+        hand_pos[2][1] = hand_pos[2][1] + 0.002
         hand_pos[4][1] = hand_pos[4][1] + 0.002
         hand_pos[6][1] = hand_pos[6][1] + 0.002
         self.compute_IK(hand_pos)
