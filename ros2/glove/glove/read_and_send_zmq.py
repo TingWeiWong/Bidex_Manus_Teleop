@@ -3,7 +3,7 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import PoseArray, Point, Pose, Quaternion
 from sensor_msgs.msg import JointState
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
+from visualization_msgs.msg import MarkerArray, Marker
 import zmq
 '''
 This reads from websockets from Manus SDK and republishes to each glove topic
@@ -34,7 +34,10 @@ using_Linux = False
 if using_Linux:
     short_idx = [23, 24, 4, 5, 9, 10, 19, 20, 14, 15]
 else:
+    # thumb PIP -> thumb DIP -> index ...
     short_idx = [3, 4, 8, 9, 13, 14, 18, 19, 23, 24]
+
+# For debugging purposes, visualize the data as points instead of pose arrays
 
 
 class GloveReader(Node):
@@ -56,11 +59,19 @@ class GloveReader(Node):
 
         self.pub_skeleton_right_full = self.create_publisher(
             PoseArray, '/glove/r_full', 1)
+        self.pub_skeleton_right_full_markers = self.create_publisher(
+            MarkerArray, '/glove/r_full_markers', 1
+        )
         self.pub_skeleton_left_full = self.create_publisher(
             PoseArray, '/glove/l_full', 1)
 
         self.pub_skeleton_right_short = self.create_publisher(
             PoseArray, '/glove/r_short', 1)
+
+        self.pub_skeleton_right_short_markers = self.create_publisher(
+            MarkerArray, '/glove/r_short_markers', 1
+        )
+
         self.pub_skeleton_left_short = self.create_publisher(
             PoseArray, '/glove/l_short', 1)
         # replace with your gloves (all lowercase letters)
@@ -76,20 +87,46 @@ class GloveReader(Node):
         the flag full is set to true by default.
         """
         skeleton_list = []
+        marker_array_msg = MarkerArray()
+
         for i in range(0, 25):
             # the first ID is right or left glove don't forget
             position = Point(
                 x=float(data[1 + i*7]), y=float(data[2 + i*7]), z=float(data[3 + i*7]))
             orientation = Quaternion(x=float(
                 data[4 + i*7]), y=float(data[5 + i*7]), z=float(data[6 + i*7]), w=float(data[7 + i*7]))
+            # orientation = Quaternion(w=float(
+            #     data[4 + i*7]), x=float(data[5 + i*7]), y=float(data[6 + i*7]), z=float(data[7 + i*7]))
+            # orientation = Quaternion(
+            #     x=float(0), y=float(0), z=float(0), w=float(0))
+            # print("i: ", i, "position: ", position)
             pose = Pose(position=position, orientation=orientation)
             skeleton_list.append(pose)
+
+            # Construct single sphere
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.ns = "joint_full"
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.scale.x = 0.01
+            marker.scale.y = 0.01
+            marker.scale.z = 0.01
+            marker.color.a = 1.0
+            marker.color.g = 1.0
+            marker.pose = pose
+            marker_array_msg.markers.append(marker)
+
         output_array_msg = PoseArray()
+        output_array_msg.header.frame_id = "map"
         output_array_msg.poses = skeleton_list
+
         if data[0] == self.left_glove_sn:
             self.pub_skeleton_left_full.publish(output_array_msg)
         elif data[0] == self.right_glove_sn:
             self.pub_skeleton_right_full.publish(output_array_msg)
+            self.pub_skeleton_right_full_markers.publish(marker_array_msg)
         else:
             print("Glove serial number incorrect!")
             print(data[0])
@@ -97,18 +134,39 @@ class GloveReader(Node):
 
     def parse_short_skeleton_and_send(self, data):
         output_array_msg = PoseArray()
+        output_array_msg.header.frame_id = "map"
+        marker_array_msg = MarkerArray()
         for i in short_idx:
             # the first ID is right or left glove don't forget
             position = Point(
                 x=float(data[1 + i*7]), y=float(data[2 + i*7]), z=float(data[3 + i*7]))
-            orientation = Quaternion(
-                x=float(0), y=float(0), z=float(0), w=float(0))
+            # orientation = Quaternion(
+            #     x=float(0), y=float(0), z=float(0), w=float(0))
+            orientation = Quaternion(w=float(
+                data[4 + i*7]), x=float(data[5 + i*7]), y=float(data[6 + i*7]), z=float(data[7 + i*7]))
             pose = Pose(position=position, orientation=orientation)
             output_array_msg.poses.append(pose)
+
+            # Construct single sphere
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.ns = "joint_full"
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.scale.x = 0.01
+            marker.scale.y = 0.01
+            marker.scale.z = 0.01
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.pose = pose
+            marker_array_msg.markers.append(marker)
+
         if data[0] == self.left_glove_sn:
             self.pub_skeleton_left_short.publish(output_array_msg)
         elif data[0] == self.right_glove_sn:
             self.pub_skeleton_right_short.publish(output_array_msg)
+            self.pub_skeleton_right_short_markers.publish(marker_array_msg)
         else:
             print("Glove serial number incorrect!")
             print(data[0])

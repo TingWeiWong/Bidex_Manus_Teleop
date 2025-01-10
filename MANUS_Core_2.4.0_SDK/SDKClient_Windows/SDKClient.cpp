@@ -388,7 +388,7 @@ void SDKClient::OnRawSkeletonStreamCallback(const SkeletonStreamInfo *const p_Ra
 			}
 			leng3 += -1;
 			// printf("%d, %s\r", leng3, char_buf_3);
-			std::cout << leng3 << ", " << std::string(char_buf_3, 10) << "\r";
+			// std::cout << leng3 << ", " << std::string(char_buf_3, 10) << "\r";
 			s_Instance->sock.send(zmq::buffer(char_buf_3, leng3), zmq::send_flags::dontwait);
 			// ZMQ
 		}

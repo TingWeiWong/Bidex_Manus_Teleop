@@ -9,6 +9,8 @@ Keep in mind this data runs VERY fast, I would not recommend directly setting ro
 
 left_glove_sn = "b8852964"
 right_glove_sn = "6bb82ce1"
+SERIAL_NUMBER = "1302917"
+DONGLE_ID = "B9A09CF4"
 
 context = zmq.Context()
 context_ergo = zmq.Context()
