@@ -33,50 +33,41 @@ class LeapPybulletIK(Node):
         # My hand 16 cm, leap hand 23 cm
         self.glove_to_leap_mapping_scale = 1.4375
         self.leapEndEffectorIndex = [3, 4, 8, 9, 13, 14, 18, 19]
+        # self.leapEndEffectorIndex = [3, 4]
+
         if self.is_left:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_left/robot_pybullet.urdf")
-            print("Using left hand URFF")
-            # You may have to set this path for your setup on ROS2
-            self.LeapId = p.loadURDF(
-                path_src,
-                [-0.05, -0.03, -0.25],
-                p.getQuaternionFromEuler([0, 1.57, 1.57]),
-                useFixedBase=True
-            )
-
-            self.pub_hand = self.create_publisher(
-                JointState, '/leaphand_node/cmd_allegro_left', 10)
-            self.sub_skeleton = self.create_subscription(
-                PoseArray, "/glove/l_short", self.get_glove_data, 10)
+            position = [-0.05, -0.03, -0.25]
+            sub_topic = "/glove/l_short"
+            pub_topic = "/leaphand_node/cmd_allegro_left"
         else:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_right/robot_pybullet.urdf")
-            print("Using right hand URDF")
-            # You may have to set this path for your setup on ROS2
-            self.LeapId = p.loadURDF(
-                path_src,
-                [-0.05, -0.03, -0.125],
-                p.getQuaternionFromEuler([0, 1.57, 1.57]),
-                useFixedBase=True
-            )
+            position = [-0.05, -0.03, -0.125]
+            sub_topic = "/glove/r_short"
+            pub_topic = "/leaphand_node/cmd_allegro_right"
 
-            self.pub_hand = self.create_publisher(
-                JointState, '/leaphand_node/cmd_allegro_right', 10)
-            self.sub_skeleton = self.create_subscription(
-                PoseArray, "/glove/r_short", self.get_glove_data, 10)
+        self.pub_hand = self.create_publisher(
+            JointState, pub_topic, 10)
+        self.sub_skeleton = self.create_subscription(
+            PoseArray, sub_topic, self.get_glove_data, 10)
 
-        self.numJoints = p.getNumJoints(self.LeapId)
+        self.LeapId = p.loadURDF(
+            path_src,
+            position,
+            p.getQuaternionFromEuler([0, 1.57, 1.57]),
+            useFixedBase=True
+        )
+
+        print("Leap hand ID: ", self.LeapId)
         p.setGravity(0, 0, 0)
         useRealTimeSimulation = 0
         p.setRealTimeSimulation(useRealTimeSimulation)
-        self.create_target_vis()
+        # self.create_target_vis()
 
     def create_target_vis(self):
         # load balls
-        small_ball_radius = 0.01
-        small_ball_shape = p.createCollisionShape(
-            p.GEOM_SPHERE, radius=small_ball_radius)
         ball_radius = 0.01
         ball_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=ball_radius)
         baseMass = 0.001
@@ -129,7 +120,7 @@ class LeapPybulletIK(Node):
         # hand_pos[4][1] = hand_pos[4][1] + 0.002
         # hand_pos[6][1] = hand_pos[6][1] + 0.002
         self.compute_IK(hand_pos)
-        self.update_target_vis(hand_pos)
+        # self.update_target_vis(hand_pos)
 
     def compute_IK(self, hand_pos):
         p.stepSimulation()
