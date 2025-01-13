@@ -30,7 +30,8 @@ class LeapPybulletIK(Node):
         self.is_left = self.declare_parameter(
             'isLeft', False).get_parameter_value().bool_value
         print("Using left hand: ", self.is_left)
-        self.glove_to_leap_mapping_scale = 1.6
+        # My hand 16 cm, leap hand 23 cm
+        self.glove_to_leap_mapping_scale = 1.4375
         self.leapEndEffectorIndex = [3, 4, 8, 9, 13, 14, 18, 19]
         if self.is_left:
             path_src = os.path.join(
@@ -120,13 +121,13 @@ class LeapPybulletIK(Node):
             hand_pos.append([poses[i].position.x * self.glove_to_leap_mapping_scale * 1.15, poses[i].position.y *
                             self.glove_to_leap_mapping_scale, poses[i].position.z * self.glove_to_leap_mapping_scale])
         # this isn't great because they won't oppose properly
-        hand_pos[2][0] = hand_pos[2][0] - 0.02
-        hand_pos[3][0] = hand_pos[3][0] - 0.02
-        hand_pos[6][0] = hand_pos[6][0] + 0.02
-        hand_pos[7][0] = hand_pos[7][0] + 0.02
-        hand_pos[2][1] = hand_pos[2][1] + 0.002
-        hand_pos[4][1] = hand_pos[4][1] + 0.002
-        hand_pos[6][1] = hand_pos[6][1] + 0.002
+        # hand_pos[2][0] = hand_pos[2][0] - 0.02
+        # hand_pos[3][0] = hand_pos[3][0] - 0.02
+        # hand_pos[6][0] = hand_pos[6][0] + 0.02
+        # hand_pos[7][0] = hand_pos[7][0] + 0.02
+        # hand_pos[2][1] = hand_pos[2][1] + 0.002
+        # hand_pos[4][1] = hand_pos[4][1] + 0.002
+        # hand_pos[6][1] = hand_pos[6][1] + 0.002
         self.compute_IK(hand_pos)
         self.update_target_vis(hand_pos)
 
