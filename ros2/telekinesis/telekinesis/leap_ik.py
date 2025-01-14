@@ -5,7 +5,7 @@ import rclpy
 import os
 
 from rclpy.node import Node
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import PoseArray, Pose
 from sensor_msgs.msg import JointState
 
 '''
@@ -51,7 +51,7 @@ class LeapPybulletIK(Node):
         self.pub_hand = self.create_publisher(
             JointState, pub_topic, 10)
         self.sub_skeleton = self.create_subscription(
-            PoseArray, sub_topic, self.get_glove_data, 10)
+            PoseArray, sub_topic, self.glove_callback, 10)
 
         self.LeapId = p.loadURDF(
             path_src,
@@ -64,7 +64,7 @@ class LeapPybulletIK(Node):
         p.setGravity(0, 0, 0)
         useRealTimeSimulation = 0
         p.setRealTimeSimulation(useRealTimeSimulation)
-        # self.create_target_vis()
+        self.create_target_vis()
 
     def create_target_vis(self):
         # load balls
@@ -86,56 +86,64 @@ class LeapPybulletIK(Node):
         p.changeVisualShape(self.ballMbt[2], -1, rgbaColor=[0, 0, 1, 1])
         p.changeVisualShape(self.ballMbt[3], -1, rgbaColor=[1, 1, 1, 1])
 
-    def update_target_vis(self, hand_pos):
+    def update_target_vis(self, leap_pos):
         _, current_orientation = p.getBasePositionAndOrientation(
             self.ballMbt[0])
         p.resetBasePositionAndOrientation(
-            self.ballMbt[0], hand_pos[3], current_orientation)
+            self.ballMbt[0], leap_pos[0], current_orientation)
         _, current_orientation = p.getBasePositionAndOrientation(
             self.ballMbt[1])
         p.resetBasePositionAndOrientation(
-            self.ballMbt[1], hand_pos[2], current_orientation)
+            self.ballMbt[1], leap_pos[2], current_orientation)
         _, current_orientation = p.getBasePositionAndOrientation(
             self.ballMbt[2])
         p.resetBasePositionAndOrientation(
-            self.ballMbt[2], hand_pos[7], current_orientation)
+            self.ballMbt[2], leap_pos[4], current_orientation)
         _, current_orientation = p.getBasePositionAndOrientation(
             self.ballMbt[3])
         p.resetBasePositionAndOrientation(
-            self.ballMbt[3], hand_pos[1], current_orientation)
+            self.ballMbt[3], leap_pos[6], current_orientation)
 
-    def get_glove_data(self, pose: PoseArray):
-        # gets the data converts it and then computes IK and visualizes
-        poses = pose.poses
-        hand_pos = []
-        for i in range(0, 10):
-            hand_pos.append([poses[i].position.x * self.glove_to_leap_mapping_scale * 1.15, poses[i].position.y *
-                            self.glove_to_leap_mapping_scale, poses[i].position.z * self.glove_to_leap_mapping_scale])
+    def glove_callback(self, pose_array: PoseArray):
+        """
+        Subscribe to glove skeleton data (8 entries per message).
+        Perform scaling and offsetting to match LEAP hand dimension.
+        """
+        glove_poses = pose_array.poses
+        leap_pos = []
+
+        glove_pose: Pose
+        for glove_pose in glove_poses:
+            leap_x = glove_pose.position.x * self.glove_to_leap_mapping_scale
+            leap_y = glove_pose.position.y * self.glove_to_leap_mapping_scale
+            leap_z = -glove_pose.position.z * self.glove_to_leap_mapping_scale
+            leap_pos.append([leap_x, leap_y, leap_z])
+
         # this isn't great because they won't oppose properly
-        # hand_pos[2][0] = hand_pos[2][0] - 0.02
-        # hand_pos[3][0] = hand_pos[3][0] - 0.02
-        # hand_pos[6][0] = hand_pos[6][0] + 0.02
-        # hand_pos[7][0] = hand_pos[7][0] + 0.02
-        # hand_pos[2][1] = hand_pos[2][1] + 0.002
-        # hand_pos[4][1] = hand_pos[4][1] + 0.002
-        # hand_pos[6][1] = hand_pos[6][1] + 0.002
-        self.compute_IK(hand_pos)
-        # self.update_target_vis(hand_pos)
+        # leap_pos[2][0] = leap_pos[2][0] - 0.02
+        # leap_pos[3][0] = leap_pos[3][0] - 0.02
+        # leap_pos[6][0] = leap_pos[6][0] + 0.02
+        # leap_pos[7][0] = leap_pos[7][0] + 0.02
+        # leap_pos[2][1] = leap_pos[2][1] + 0.002
+        # leap_pos[4][1] = leap_pos[4][1] + 0.002
+        # leap_pos[6][1] = leap_pos[6][1] + 0.002
+        self.compute_IK(leap_pos)
+        self.update_target_vis(leap_pos)
 
-    def compute_IK(self, hand_pos):
+    def compute_IK(self, leap_pos):
         p.stepSimulation()
 
-        rightHandIndex_middle_pos = hand_pos[2]
-        rightHandIndex_pos = hand_pos[3]
+        rightHandThumb_middle_pos = leap_pos[0]
+        rightHandThumb_pos = leap_pos[1]
 
-        rightHandMiddle_middle_pos = hand_pos[4]
-        rightHandMiddle_pos = hand_pos[5]
+        rightHandIndex_middle_pos = leap_pos[2]
+        rightHandIndex_pos = leap_pos[3]
 
-        rightHandRing_middle_pos = hand_pos[6]
-        rightHandRing_pos = hand_pos[7]
+        rightHandMiddle_middle_pos = leap_pos[4]
+        rightHandMiddle_pos = leap_pos[5]
 
-        rightHandThumb_middle_pos = hand_pos[0]
-        rightHandThumb_pos = hand_pos[1]
+        rightHandRing_middle_pos = leap_pos[6]
+        rightHandRing_pos = leap_pos[7]
 
         leapEndEffectorPos = [
             rightHandIndex_middle_pos,
@@ -145,13 +153,19 @@ class LeapPybulletIK(Node):
             rightHandRing_middle_pos,
             rightHandRing_pos,
             rightHandThumb_middle_pos,
-            rightHandThumb_pos
+            rightHandThumb_pos,
         ]
 
+        """
+        targetPositions: target position of the end effector 
+        (its link coordinate, not center of mass coordinate!). 
+        By default this is in Cartesian world space, 
+        unless you provide currentPosition joint angles.
+        """
         jointPoses = p.calculateInverseKinematics2(
-            self.LeapId,
-            self.leapEndEffectorIndex,
-            leapEndEffectorPos,
+            bodyUniqueId=self.LeapId,
+            endEffectorLinkIndices=self.leapEndEffectorIndex,
+            targetPositions=leapEndEffectorPos,
             solver=p.IK_DLS,
             maxNumIterations=50,
             residualThreshold=0.0001,
