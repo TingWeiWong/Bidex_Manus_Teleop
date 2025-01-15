@@ -476,7 +476,7 @@
         <joint_properties friction="0.0" />
     </joint>
 
-    <link name="pip_4">
+    <link name="thumb_mcp">
         <visual>
             <origin
                 xyz="-0.0053566369077286714317 0.00029999999999999991951 0.00078403401041737819099"
@@ -591,7 +591,7 @@
         <origin xyz="-0.069395249652862533996 -0.0012422438651005258004 -0.021622403578460215601"
             rpy="-8.2381766464939424156e-17 1.5707963267948956698 0" />
         <parent link="palm_lower" />
-        <child link="pip_4" />
+        <child link="thumb_mcp" />
         <axis xyz="0 0 -1" />
         <limit effort="0.95" velocity="8.48" lower="-0.349" upper="2.094" />
         <joint_properties friction="0.0" />
@@ -600,7 +600,7 @@
     <joint name="13" type="revolute">
         <origin xyz="-2.7755575615628913511e-17 0.014300000000000005415 -0.013000000000000011546"
             rpy="1.5707963267948958919 -1.570796326794896336 0" />
-        <parent link="pip_4" />
+        <parent link="thumb_mcp" />
         <child link="thumb_pip" />
         <axis xyz="0 0 -1" />
         <limit effort="0.95" velocity="8.48" lower="-0.47" upper="2.443" />
