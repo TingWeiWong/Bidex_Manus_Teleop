@@ -627,7 +627,7 @@
         <joint_properties friction="0.0" />
     </joint>
 
-    <link name="realtip">
+    <!-- <link name="realtip">
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
@@ -759,6 +759,6 @@
         <axis xyz="0 0 -1" />
         <limit effort="0.95" velocity="8.48" lower="-0.366" upper="2.042" />
         <joint_properties friction="0.0" />
-    </joint>
+    </joint> -->
 
 </robot>
