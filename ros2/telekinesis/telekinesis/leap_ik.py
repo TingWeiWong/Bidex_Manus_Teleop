@@ -49,14 +49,17 @@ class LeapPybulletIK(Node):
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_left/robot_pybullet.urdf")
             position = [-0.05, -0.03, -0.25]
+            # orientation = p.getQuaternionFromEuler([0, 1.57, 1.57])
+            orientation = p.getQuaternionFromEuler([0, 0, 0])
             sub_topic = "/glove/l_short"
             pub_topic = "/leaphand_node/cmd_allegro_left"
         else:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_right/robot_pybullet.urdf")
             # In pybullet red is X, green is Y, blue is Z
-            position = [-0.06, -0.00, 0.00]
+            position = [-0.00, -0.00, 0.00]
             # position = [0.0, 0.0, 0.0]
+            orientation = p.getQuaternionFromEuler([0, 0, 0])
             sub_topic = "/glove/r_short"
             pub_topic = "/leaphand_node/cmd_allegro_right"
 
@@ -69,7 +72,7 @@ class LeapPybulletIK(Node):
             self.LeapId = p.loadURDF(
                 path_src,
                 position,
-                p.getQuaternionFromEuler([0, 1.57, 1.57]),
+                orientation,
                 useFixedBase=True,
                 flags=p.URDF_MAINTAIN_LINK_ORDER
             )
@@ -77,7 +80,7 @@ class LeapPybulletIK(Node):
             self.LeapId = p.loadURDF(
                 path_src,
                 position,
-                p.getQuaternionFromEuler([0, 1.57, 1.57]),
+                orientation,
                 useFixedBase=True
             )
         print("Leap hand ID: ", self.LeapId)
@@ -160,14 +163,6 @@ class LeapPybulletIK(Node):
             leap_z = glove_pose.position.z * GLOVE_to_LEAP_FACTOR
             leap_pos.append([leap_x, leap_y, leap_z])
 
-        # this isn't great because they won't oppose properly
-        # leap_pos[2][0] = leap_pos[2][0] - 0.02
-        # leap_pos[3][0] = leap_pos[3][0] - 0.02
-        # leap_pos[6][0] = leap_pos[6][0] + 0.02
-        # leap_pos[7][0] = leap_pos[7][0] + 0.02
-        # leap_pos[2][1] = leap_pos[2][1] + 0.002
-        # leap_pos[4][1] = leap_pos[4][1] + 0.002
-        # leap_pos[6][1] = leap_pos[6][1] + 0.002
         self.compute_IK(leap_pos)
         self.update_target_vis(leap_pos)
 
