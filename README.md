@@ -20,7 +20,7 @@ Pick EITHER [Ubuntu Standalone](https://docs.manus-meta.com/2.4.0/Plugins/SDK/Li
 Ubuntu only is more useful for robotics, but Windows is better supported by [Manus Core](https://docs.manus-meta.com/2.4.0/Software/).
 
 You need a license from Manus to use the SDK to use this software.
-### Ubuntu Standalone 
+### Option 1: Ubuntu Standalone 
 - Install [cppzmq](https://github.com/zeromq/cppzmq/tree/master). (This is a dependency for our version of the Manus SDK)  I recommend this guide from cppzmq:
     ```
     sudo apt-get install libzmq3-dev
@@ -41,7 +41,7 @@ Now to run our version of the MANUS SDK:
 - Run the Python or the ROS2 script on the Linux machine.   See those sections to setup Python or ROS2.
 - Check the python/ROS2 ZMQ address is `tcp://127.0.0.1:8000` (This is default) whenever you run using just one computer.
 
-### Windows Manus Core -> Ubuntu
+### Option 2: Windows Manus Core -> Ubuntu
 - Install [Manus Core 2.4](https://docs.manus-meta.com/2.4.0/Software/) and setup the gloves there
 - Install the requirements from the [Manus SDK](https://docs.manus-meta.com/2.4.0/Plugins/SDK/) normally
 - Download this repo and open the solution file in Visual Studio.  
@@ -61,7 +61,7 @@ Now to run our version of the MANUS SDK:
         <img width="250" src="./readme_media/windows_instructions.PNG">
         <img width="265" src="./readme_media/ubuntu_instructions.png"> 
     </p>
-- Note currently Windows has a different joint ordering than Linux, please see `read_and_send_zmq.py` for details on how to switch between.
+- NOTE, currently Windows has a different joint ordering than Linux, please see `read_and_send_zmq.py` for details on how to switch between.
 
 Now to run the SDK:
 
