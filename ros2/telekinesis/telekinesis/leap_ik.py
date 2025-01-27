@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
 import pybullet as p
 import numpy as np
+from scipy.spatial.transform import Rotation
 import rclpy
 import os
-
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray, Pose
 from sensor_msgs.msg import JointState
 
-'''
-This takes the glove data, and runs inverse kinematics and then publishes onto LEAP Hand.
-
-Note how the fingertip positions are matching, but the joint angles between the two hands are not.  :) 
-
-Inspired by Dexcap https://dex-cap.github.io/ by Wang et. al. and Robotic Telekinesis by Shaw et. al.
-'''
-
 # The ratio of LEAP hand to glove hand (human hand) dimensions
 GLOVE_to_LEAP_FACTOR = 1.4375
 # GLOVE_to_LEAP_FACTOR = 1.0
+GLOVE_to_LEAP_FACTOR = 1.8
 
 
 # PIP and Fingertip indices (should match with the actual)
-LEAP_EE_INDEX_CHECK = [14, 15, 2, 3, 6, 7, 10, 11]
+LEAP_EE_URDF_INDEX_CHECK = [14, 15, 2, 3, 6, 7, 10, 11]
 
 # Create mapping from link name to link index
 LINK_MAP = {}
@@ -30,13 +23,35 @@ LINK_MAP = {}
 # Maintain same link order everytime?
 MAINTAIN_LINK_ORDER = True
 
+# Thumb (mid, tip), Index (mid, tip), Middle (mid, tip), Ring (mid, tip) index from full skeleton
+FINGER_INDEX = [3, 4, 8, 9, 13, 14, 18, 19, 23, 24]
+
+# Glove to Pybullet (glove palm down, pybullet palm up)
+g_T_p = np.eye(4)
+g_T_p = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0],
+                 [0.0, 0.0, -1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
+
+# g_T_p = np.array([[0.9999974,  0.0015927,  0.0015927, 0.0],
+#                   [0.0015927, -0.9999987,  0.0000000, 0.0],
+#                   [0.0015927,  0.0000025, -0.9999987, 0.0],
+#                   [0.0, 0.0, 0.0, 1.0]])
+
+
+def ros_pose_to_mat(pose: Pose):
+    """Convert geometry/Pose into np.array 4x4 matrix"""
+    pose_mat = np.eye(4)
+    # Scalar (w) first = False
+    R = Rotation.from_quat([pose.orientation.x, pose.orientation.y,
+                           pose.orientation.z, pose.orientation.w]).as_matrix()
+    pose_mat[:3, :3] = R
+    pose_mat[0:3, 3] = [pose.position.x, pose.position.y, pose.position.z]
+    return pose_mat
+
 
 class LeapPybulletIK(Node):
     def __init__(self):
         super().__init__('leap_pyb_ik')
         # start pybullet
-        # clid = p.connect(p.SHARED_MEMORY)
-        # clid = p.connect(p.DIRECT)
         p.connect(p.GUI)
         # load right leap hand
         path_src = os.path.abspath(__file__)
@@ -45,22 +60,29 @@ class LeapPybulletIK(Node):
             'isLeft', False).get_parameter_value().bool_value
         print("Using left hand: ", self.is_left)
 
+        # Since the root of the LEAP hand URDF is not at the palm's root (it is at the root of the index finger), we set an offset to correct the root location
+        self.leap_center_offset = [0.18, 0.03, 0.0]
+        # Since the root of the fingertip mesh in URDF is not at the tip (it is at the right lower part of the fingertip mesh), we set an offset to correct the fingertip location
+        self.fingertip_offset = np.array([0.1, 0.0, -0.08])
+        # Same reason for the thumb tip
+        self.thumb_offset = np.array([0.1, 0.0, -0.06])
+
+        self.position_offset = [0.10, -0.05, 0.0]
+
         if self.is_left:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_left/robot_pybullet.urdf")
-            position = [-0.05, -0.03, -0.25]
             # orientation = p.getQuaternionFromEuler([0, 1.57, 1.57])
             orientation = p.getQuaternionFromEuler([0, 0, 0])
-            sub_topic = "/glove/l_short"
+            sub_topic = "/glove/l_full"
             pub_topic = "/leaphand_node/cmd_allegro_left"
         else:
             path_src = os.path.join(
                 path_src, "leap_hand_mesh_right/robot_pybullet.urdf")
             # In pybullet red is X, green is Y, blue is Z
-            position = [-0.00, -0.00, 0.00]
             # position = [0.0, 0.0, 0.0]
-            orientation = p.getQuaternionFromEuler([0, 0, 0])
-            sub_topic = "/glove/r_short"
+            orientation = p.getQuaternionFromEuler([0.0, 3.14, 3.14])
+            sub_topic = "/glove/r_full"
             pub_topic = "/leaphand_node/cmd_allegro_right"
 
         self.pub_hand = self.create_publisher(
@@ -71,7 +93,7 @@ class LeapPybulletIK(Node):
         if MAINTAIN_LINK_ORDER:
             self.LeapId = p.loadURDF(
                 path_src,
-                position,
+                self.position_offset,
                 orientation,
                 useFixedBase=True,
                 flags=p.URDF_MAINTAIN_LINK_ORDER
@@ -79,7 +101,7 @@ class LeapPybulletIK(Node):
         else:
             self.LeapId = p.loadURDF(
                 path_src,
-                position,
+                self.position_offset,
                 orientation,
                 useFixedBase=True
             )
@@ -96,14 +118,14 @@ class LeapPybulletIK(Node):
                   jointName, " childLinkName: ", childLinkName)
             LINK_MAP[childLinkName] = link_idx
 
-        self.LEAP_EE_INDEX = [LINK_MAP["thumb_dip"], LINK_MAP["thumb_fingertip"],
-                              LINK_MAP["dip"], LINK_MAP["fingertip"],
-                              LINK_MAP["dip_2"], LINK_MAP["fingertip_2"],
-                              LINK_MAP["dip_3"], LINK_MAP["fingertip_3"]]
+        self.LEAP_EE_URDF_INDEX = [LINK_MAP["thumb_dip"], LINK_MAP["thumb_fingertip"],
+                                   LINK_MAP["dip"], LINK_MAP["fingertip"],
+                                   LINK_MAP["dip_2"], LINK_MAP["fingertip_2"],
+                                   LINK_MAP["dip_3"], LINK_MAP["fingertip_3"]]
 
-        print("Calculated LEAP_EE_INDEX: ", self.LEAP_EE_INDEX)
-        print("LEAP_EE_INDEX_CHECK: ", LEAP_EE_INDEX_CHECK)
-        assert self.LEAP_EE_INDEX == LEAP_EE_INDEX_CHECK
+        print("Calculated LEAP_EE_INDEX: ", self.LEAP_EE_URDF_INDEX)
+        print("LEAP_EE_URDF_INDEX_CHECK: ", LEAP_EE_URDF_INDEX_CHECK)
+        assert self.LEAP_EE_URDF_INDEX == LEAP_EE_URDF_INDEX_CHECK
 
         p.setGravity(0, 0, 0)
         useRealTimeSimulation = 0
@@ -150,36 +172,70 @@ class LeapPybulletIK(Node):
 
     def glove_callback(self, pose_array: PoseArray):
         """
-        Subscribe to glove skeleton data (8 entries per message).
-        Perform scaling and offsetting to match LEAP hand dimension.
+        Subscribe to the full skeleton pose array.
+        The first pose is suppose to be at the origin.
+        The following 8 poses form the palm plane.
+        Scale them accordingly. Now the joint angles between human hand and leap hand are supposed to be the same.
+        Scale the lenear components of the poses by the GLOVE_to_LEAP_FACTOR.
         """
         glove_poses = pose_array.poses
         leap_pos = []
 
         glove_pose: Pose
-        for glove_pose in glove_poses:
-            leap_x = glove_pose.position.x * GLOVE_to_LEAP_FACTOR
-            leap_y = glove_pose.position.y * GLOVE_to_LEAP_FACTOR
-            leap_z = glove_pose.position.z * GLOVE_to_LEAP_FACTOR
-            leap_pos.append([leap_x, leap_y, leap_z])
+        N = len(glove_poses)  # number of mocap joints
+        # Origin pose to world
+        w_T_o: np.ndarray = ros_pose_to_mat(glove_poses[0])
+        print("W_T_o: ", w_T_o)
+        # Sanity check if translation component is zero
+        assert w_T_o[0, 3] == w_T_o[1, 3] == w_T_o[2, 3] == 0.0
+        o_T_w = np.linalg.inv(w_T_o)
 
+        # Transformed poses to joint 0 frame
+        o_Ts = np.zeros((N, 4, 4))
+
+        for (i, glove_pose) in enumerate(glove_poses):
+            # Find origin pose (assume T = 0 and only R is non-identity)
+            # pose in joint 0 frame (4x4) matrix
+            o_T_i = g_T_p @ o_T_w @ ros_pose_to_mat(glove_pose)
+            o_Ts[i] = o_T_i
+
+        leap_pos = self.lin_scale_ee(o_Ts, GLOVE_to_LEAP_FACTOR)
         self.compute_IK(leap_pos)
         self.update_target_vis(leap_pos)
+
+    def lin_scale_ee(self, oTs: np.ndarray, scale: float):
+        """
+        Scale the linear components of the end effector poses by the GLOVE_to_LEAP_FACTOR.
+        Order should follow mid->tip with thumb, index, middle, ring
+        oTs: Nx4x4 array of end effector poses in joint 0 frame
+        """
+        leap_pos = []
+        for i in FINGER_INDEX:
+            o_T_i = oTs[i]
+            # Scale the linear components
+            scaled_t = scale * o_T_i[0:3, 3]
+            # scaled_t += (self.position_offset)
+            leap_pos.append(scaled_t)
+        return leap_pos
 
     def compute_IK(self, leap_pos):
         p.stepSimulation()
 
         Thumb_middle_pos = leap_pos[0]
         Thumb_pos = leap_pos[1]
+        print("thumb_pos: ", Thumb_pos)
 
         Index_middle_pos = leap_pos[2]
         Index_pos = leap_pos[3]
+        print("index_pos: ", Index_pos)
 
         Middle_middle_pos = leap_pos[4]
         Middle_pos = leap_pos[5]
+        print("middle_pos: ", Middle_pos)
 
         Ring_middle_pos = leap_pos[6]
         Ring_pos = leap_pos[7]
+        print("ring_pos: ", Ring_pos)
 
         leapEndEffectorPos = [
             Thumb_middle_pos,
@@ -200,19 +256,14 @@ class LeapPybulletIK(Node):
         """
         jointPoses = p.calculateInverseKinematics2(
             bodyUniqueId=self.LeapId,
-            endEffectorLinkIndices=self.LEAP_EE_INDEX,
+            endEffectorLinkIndices=self.LEAP_EE_URDF_INDEX,
             targetPositions=leapEndEffectorPos,
             solver=p.IK_DLS,
             maxNumIterations=50,
             residualThreshold=0.0001,
         )
 
-        # Joint 16,17,18,19 are actually not used
-        # combined_jointPoses = (jointPoses[0:4] + (0.0,) + jointPoses[4:8] + (
-        #     0.0,) + jointPoses[8:12] + (0.0,) + jointPoses[12:16] + (0.0,))
-        # combined_jointPoses = list(combined_jointPoses)
-
-        # update the hand joints
+        # Update the hand joints
         for i in range(self.numJoints):
             p.setJointMotorControl2(
                 bodyIndex=self.LeapId,
