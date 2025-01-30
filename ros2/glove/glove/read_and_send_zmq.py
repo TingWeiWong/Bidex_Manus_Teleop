@@ -15,6 +15,20 @@ The full skeleton is the xyz quaternion of every single joint in the hand estima
 Note, currently if you are using Windows, there is a different joint ordering than with Linux.  In Windows it is thumb to pinky in finger order, but on Linux it jumps around. Please see "short_idx" for details.  
 '''
 
+"""
+Windows joint mapping, see https://youtu.be/5hAlGGVomf0 for full mapping
+All joints from palm to fingertip (e,g, fingertip has higher number than MCP)
+Origin: 0
+    Thumb: 1,2,3,4
+    Index: 5,6,7,8,9
+    Middle: 10,11,12,13,14
+    Ring: 15,16,17,18,19
+    Pinky: 20,21,22,23,24
+
+Note that eight points (5,10,15,20, 6,11,16,21) should be roughly coplanar since they lie on the palm
+"""
+
+
 SKELETON_IP_ADDRESS = "tcp://192.168.1.97:8000"
 ERGO_IP_ADDRESS = "tcp://192.168.1.97:8001"
 LEFT_GLOVE_SN = "b8852964"
