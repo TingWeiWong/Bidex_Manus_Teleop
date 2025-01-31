@@ -7,11 +7,12 @@ import os
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray, Pose
 from sensor_msgs.msg import JointState
+from copy import deepcopy
 
 # The ratio of LEAP hand to glove hand (human hand) dimensions
 GLOVE_to_LEAP_FACTOR = 1.4375
-# GLOVE_to_LEAP_FACTOR = 1.0
-GLOVE_to_LEAP_FACTOR = 1.8
+GLOVE_to_LEAP_FACTOR = 1.0
+# GLOVE_to_LEAP_FACTOR = 1.6
 
 
 # PIP and Fingertip indices (should match with the actual)
@@ -31,10 +32,32 @@ g_T_p = np.eye(4)
 g_T_p = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0],
                  [0.0, 0.0, -1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
 
-# g_T_p = np.array([[0.9999974,  0.0015927,  0.0015927, 0.0],
-#                   [0.0015927, -0.9999987,  0.0000000, 0.0],
-#                   [0.0015927,  0.0000025, -0.9999987, 0.0],
-#                   [0.0, 0.0, 0.0, 1.0]])
+
+# LEAP MCP locations in world frame
+LEAP_INDEX_MCP = np.array([0.0929, -0.0580, 0.01873])
+LEAP_MIDDLE_MCP = np.array([0.0929, -0.0126, 0.01873])
+LEAP_RING_MCP = np.array([0.0929, 0.03285, 0.01873])
+
+
+# Color code
+RED = [1, 0, 0, 1]  # Red
+GREEN = [0, 1, 0, 1]  # Green
+BLUE = [0, 0, 1, 1]  # Blue
+YELLOW = [1, 1, 0, 1]  # Yellow
+WHITE = [1, 1, 1, 1]  # White
+BLACK = [0, 0, 0, 1]  # Black
+
+# Group joints (0 - 19)
+JOINT_GROUP = ["origin", "thumb", "thumb", "thumb", "thumb",
+               "palm", "palm", "index", "index", "index",
+               "palm", "palm", "middle", "middle", "middle",
+               "palm", "palm", "ring", "ring", "ring"]
+
+PALM_IDX = [5, 10, 15, 6, 11, 16]
+THUMB_IDX = [1, 2, 3, 4]
+INDEX_IDX = [7, 8, 9]
+MIDDLE_IDX = [12, 13, 14]
+RING_IDX = [17, 18, 19]
 
 
 def ros_pose_to_mat(pose: Pose):
@@ -63,9 +86,10 @@ class LeapPybulletIK(Node):
         # Since the root of the LEAP hand URDF is not at the palm's root (it is at the root of the index finger), we set an offset to correct the root location
         self.leap_center_offset = [0.18, 0.03, 0.0]
         # Since the root of the fingertip mesh in URDF is not at the tip (it is at the right lower part of the fingertip mesh), we set an offset to correct the fingertip location
-        self.fingertip_offset = np.array([0.1, 0.0, -0.08])
+        self.fingertip_offset = np.array([-0.05, -0.018, 0.00])
         # Same reason for the thumb tip
         self.thumb_offset = np.array([0.1, 0.0, -0.06])
+        self.mcp_offset = np.array([0.0, 0.015, 0.0])
 
         self.position_offset = [0.10, -0.05, 0.0]
 
@@ -123,6 +147,11 @@ class LeapPybulletIK(Node):
                                    LINK_MAP["dip_2"], LINK_MAP["fingertip_2"],
                                    LINK_MAP["dip_3"], LINK_MAP["fingertip_3"]]
 
+        self.LEAP_EE_URDF_FINGERTIP = [LINK_MAP["thumb_fingertip"],
+                                       LINK_MAP["fingertip"],
+                                       LINK_MAP["fingertip_2"],
+                                       LINK_MAP["fingertip_3"]]
+
         print("Calculated LEAP_EE_INDEX: ", self.LEAP_EE_URDF_INDEX)
         print("LEAP_EE_URDF_INDEX_CHECK: ", LEAP_EE_URDF_INDEX_CHECK)
         assert self.LEAP_EE_URDF_INDEX == LEAP_EE_URDF_INDEX_CHECK
@@ -131,6 +160,25 @@ class LeapPybulletIK(Node):
         useRealTimeSimulation = 0
         p.setRealTimeSimulation(useRealTimeSimulation)
         self.create_target_vis()
+        self.create_linkState_vis()
+
+    def create_linkState_vis(self):
+        """Visualize link state in world frame calculated from forward kinematics"""
+        ball_radius = 0.01
+        ball_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=ball_radius)
+        baseMass = 0.001
+        basePosition = [0.25, 0.25, 0]
+
+        self.linkStateBall = []
+        for i in range(0, 6):
+            self.linkStateBall.append(p.createMultiBody(baseMass=baseMass, baseCollisionShapeIndex=ball_shape,
+                                                        basePosition=basePosition))  # for base and finger tip joints
+            no_collision_group = 0
+            no_collision_mask = 0
+            p.setCollisionFilterGroupMask(
+                self.linkStateBall[i], -1, no_collision_group, no_collision_mask)
+
+            p.changeVisualShape(self.linkStateBall[i], -1, rgbaColor=BLACK)
 
     def create_target_vis(self):
         # load balls
@@ -140,35 +188,56 @@ class LeapPybulletIK(Node):
         basePosition = [0.25, 0.25, 0]
 
         self.ballMbt = []
-        for i in range(0, 4):
+        for i in range(0, len(JOINT_GROUP)):
             self.ballMbt.append(p.createMultiBody(baseMass=baseMass, baseCollisionShapeIndex=ball_shape,
                                 basePosition=basePosition))  # for base and finger tip joints
             no_collision_group = 0
             no_collision_mask = 0
             p.setCollisionFilterGroupMask(
                 self.ballMbt[i], -1, no_collision_group, no_collision_mask)
-        p.changeVisualShape(self.ballMbt[0], -1, rgbaColor=[1, 0, 0, 1])
-        p.changeVisualShape(self.ballMbt[1], -1, rgbaColor=[0, 1, 0, 1])
-        p.changeVisualShape(self.ballMbt[2], -1, rgbaColor=[0, 0, 1, 1])
-        p.changeVisualShape(self.ballMbt[3], -1, rgbaColor=[1, 1, 1, 1])
+
+            # Check which group it belongs to
+            joint_group = JOINT_GROUP[i]
+            if joint_group == "origin":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=BLACK)
+            elif joint_group == "palm":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=GREEN)
+            elif joint_group == "thumb":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=BLUE)
+            elif joint_group == "index":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=GREEN)
+            elif joint_group == "middle":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=RED)
+            elif joint_group == "ring":
+                p.changeVisualShape(self.ballMbt[i], -1, rgbaColor=BLUE)
+            else:
+                print("Joint name error")
 
     def update_target_vis(self, leap_pos):
-        _, current_orientation = p.getBasePositionAndOrientation(
-            self.ballMbt[0])
-        p.resetBasePositionAndOrientation(
-            self.ballMbt[0], leap_pos[0], current_orientation)
-        _, current_orientation = p.getBasePositionAndOrientation(
-            self.ballMbt[1])
-        p.resetBasePositionAndOrientation(
-            self.ballMbt[1], leap_pos[2], current_orientation)
-        _, current_orientation = p.getBasePositionAndOrientation(
-            self.ballMbt[2])
-        p.resetBasePositionAndOrientation(
-            self.ballMbt[2], leap_pos[4], current_orientation)
-        _, current_orientation = p.getBasePositionAndOrientation(
-            self.ballMbt[3])
-        p.resetBasePositionAndOrientation(
-            self.ballMbt[3], leap_pos[6], current_orientation)
+        """
+        Assume leap_pos has 19 values
+        """
+        for i in range(len(JOINT_GROUP)):
+            _, current_orientation = p.getBasePositionAndOrientation(
+                self.ballMbt[i])
+            p.resetBasePositionAndOrientation(
+                self.ballMbt[i], leap_pos[i], current_orientation)
+
+    def update_linkState_ball(self):
+        """Update where the upper palm should be"""
+        link_array = p.getLinkStates(bodyUniqueId=self.LeapId, linkIndices=[LINK_MAP["dip"], LINK_MAP["dip_2"], LINK_MAP["dip_3"],
+                                                                            LINK_MAP["fingertip"], LINK_MAP["fingertip_2"], LINK_MAP["fingertip_3"]])
+        # print("len link_array: ", len(link_array))
+        for i, link_info in enumerate(link_array):
+            w_pos = np.array(link_info[0])
+            w_quat = link_info[1]  # x, y, z, w
+            # w_pos += self.mcp_offset
+            # print("w_pos: ", w_pos)
+            # print("w_quat: ", w_quat)
+            _, current_orientation = p.getBasePositionAndOrientation(
+                self.linkStateBall[i])
+            p.resetBasePositionAndOrientation(
+                self.linkStateBall[i], w_pos, current_orientation)
 
     def glove_callback(self, pose_array: PoseArray):
         """
@@ -185,7 +254,6 @@ class LeapPybulletIK(Node):
         N = len(glove_poses)  # number of mocap joints
         # Origin pose to world
         w_T_o: np.ndarray = ros_pose_to_mat(glove_poses[0])
-        print("W_T_o: ", w_T_o)
         # Sanity check if translation component is zero
         assert w_T_o[0, 3] == w_T_o[1, 3] == w_T_o[2, 3] == 0.0
         o_T_w = np.linalg.inv(w_T_o)
@@ -199,9 +267,90 @@ class LeapPybulletIK(Node):
             o_T_i = g_T_p @ o_T_w @ ros_pose_to_mat(glove_pose)
             o_Ts[i] = o_T_i
 
-        leap_pos = self.lin_scale_ee(o_Ts, GLOVE_to_LEAP_FACTOR)
+        # leap_pos = self.lin_scale_ee(o_Ts, GLOVE_to_LEAP_FACTOR)
+        leap_pos = self.joint_mapping_ee(o_Ts, 1.0)
         self.compute_IK(leap_pos)
         self.update_target_vis(leap_pos)
+        self.update_linkState_ball()
+
+    def joint_mapping_ee(self, oTs: np.ndarray, scales: float):
+        """
+        Instead of calculating just the end effector, map each joint from glove to LEAP Hand.
+        Calculate the palm plane first, then get the orientation from joint to palm.
+        """
+        leap_pos = []
+        new_oTs = deepcopy(oTs)
+        palm_poses = new_oTs[PALM_IDX]
+        thumb_poses = new_oTs[THUMB_IDX]
+        index_poses = new_oTs[INDEX_IDX]
+        middle_poses = new_oTs[MIDDLE_IDX]
+        ring_poses = new_oTs[RING_IDX]
+
+        # Calibrate upper palm (6,11,16) position
+        palm_poses[3][:3, 3] = LEAP_INDEX_MCP
+        palm_poses[4][:3, 3] = LEAP_MIDDLE_MCP
+        palm_poses[5][:3, 3] = LEAP_RING_MCP
+
+        # Calibrate upper palm orientation since mcp DoF should be perpendicular to line formed by three mcp pos
+
+        # Calculate index pip 7 from mcp 6 (pointing in local x direction)
+        pip_scale = 0.05
+        index_poses[0][:3, 3] = palm_poses[3][:3, 3] + \
+            pip_scale * palm_poses[3][:3, 0]
+        middle_poses[0][:3, 3] = palm_poses[4][:3, 3] + \
+            pip_scale * palm_poses[4][:3, 0]
+        ring_poses[0][:3, 3] = palm_poses[5][:3, 3] + \
+            pip_scale * palm_poses[5][:3, 0]
+        # No y directional change
+        index_poses[0][1, 3] = palm_poses[3][1, 3]
+        middle_poses[0][1, 3] = palm_poses[4][1, 3]
+        ring_poses[0][1, 3] = palm_poses[5][1, 3]
+
+        # Calculate index dip 8 from pip 7
+        dip_scale = 0.04
+        index_poses[1][:3, 3] = index_poses[0][:3, 3] + \
+            dip_scale * index_poses[0][:3, 0]
+        middle_poses[1][:3, 3] = middle_poses[0][:3, 3] + \
+            dip_scale * middle_poses[0][:3, 0]
+        ring_poses[1][:3, 3] = ring_poses[0][:3, 3] + \
+            dip_scale * ring_poses[0][:3, 0]
+        # index_poses[1][1, 3] = index_poses[0][1, 3]
+        # index_poses[1][:3, 3] += self.mcp_offset
+
+        # Calculate index fingertip 9 from dip 8
+        fingertip_scale = 0.05
+        index_poses[2][:3, 3] = index_poses[1][:3, 3] + \
+            fingertip_scale * index_poses[1][:3, 0]
+        middle_poses[2][:3, 3] = middle_poses[1][:3, 3] + \
+            fingertip_scale * middle_poses[1][:3, 0]
+        ring_poses[2][:3, 3] = ring_poses[1][:3, 3] + \
+            fingertip_scale * ring_poses[1][:3, 0]
+
+        # index_poses[2][1, 3] = index_poses[1][1, 3]
+        index_poses[2][:3, 3] += self.fingertip_offset
+        middle_poses[2][:3, 3] += self.fingertip_offset
+        ring_poses[2][:3, 3] += self.fingertip_offset
+
+        # Check 7 in 6 frame
+        T_es = np.linalg.inv(palm_poses[3]) @ index_poses[0]
+        # Suppose to be on X axis
+        # print("trans: ", T_es[:3, 3])
+
+        new_oTs[PALM_IDX] = palm_poses
+        new_oTs[INDEX_IDX] = index_poses
+        new_oTs[MIDDLE_IDX] = middle_poses
+        new_oTs[RING_IDX] = ring_poses
+
+        new_t = new_oTs[:, :3, 3]
+        return new_t
+
+        for i in range(len(JOINT_GROUP)):
+            o_T_i = oTs[i]
+            # Scale the linear components
+            scaled_t = GLOVE_to_LEAP_FACTOR * o_T_i[0:3, 3]
+            # scaled_t += (self.position_offset)
+            leap_pos.append(scaled_t)
+        return leap_pos
 
     def lin_scale_ee(self, oTs: np.ndarray, scale: float):
         """
@@ -221,21 +370,21 @@ class LeapPybulletIK(Node):
     def compute_IK(self, leap_pos):
         p.stepSimulation()
 
-        Thumb_middle_pos = leap_pos[0]
-        Thumb_pos = leap_pos[1]
-        print("thumb_pos: ", Thumb_pos)
+        Thumb_middle_pos = leap_pos[THUMB_IDX[1]]
+        Thumb_pos = leap_pos[THUMB_IDX[3]]
+        # print("thumb_pos: ", Thumb_pos)
 
-        Index_middle_pos = leap_pos[2]
-        Index_pos = leap_pos[3]
-        print("index_pos: ", Index_pos)
+        Index_middle_pos = leap_pos[INDEX_IDX[0]]
+        Index_pos = leap_pos[INDEX_IDX[2]]
+        # print("index_pos: ", Index_pos)
 
-        Middle_middle_pos = leap_pos[4]
-        Middle_pos = leap_pos[5]
-        print("middle_pos: ", Middle_pos)
+        Middle_middle_pos = leap_pos[MIDDLE_IDX[0]]
+        Middle_pos = leap_pos[MIDDLE_IDX[2]]
+        # print("middle_pos: ", Middle_pos)
 
-        Ring_middle_pos = leap_pos[6]
-        Ring_pos = leap_pos[7]
-        print("ring_pos: ", Ring_pos)
+        Ring_middle_pos = leap_pos[RING_IDX[0]]
+        Ring_pos = leap_pos[RING_IDX[2]]
+        # print("ring_pos: ", Ring_pos)
 
         leapEndEffectorPos = [
             Thumb_middle_pos,
@@ -248,6 +397,13 @@ class LeapPybulletIK(Node):
             Ring_pos,
         ]
 
+        leapEndEffectorPos = [
+            Thumb_pos,
+            Index_pos,
+            Middle_pos,
+            Ring_pos,
+        ]
+
         """
         targetPositions: target position of the end effector 
         (its link coordinate, not center of mass coordinate!). 
@@ -256,7 +412,7 @@ class LeapPybulletIK(Node):
         """
         jointPoses = p.calculateInverseKinematics2(
             bodyUniqueId=self.LeapId,
-            endEffectorLinkIndices=self.LEAP_EE_URDF_INDEX,
+            endEffectorLinkIndices=self.LEAP_EE_URDF_FINGERTIP,
             targetPositions=leapEndEffectorPos,
             solver=p.IK_DLS,
             maxNumIterations=50,
