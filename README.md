@@ -107,6 +107,7 @@ It is useful to retarget the glove data to robot hands to perform similar finger
 
 ### ROS2 + LEAP Hand
 - To run on the real [LEAP Hand](https://leaphand.com/), run our MANUS SDK first, then this ROS2 node and then the LEAP hand ROS2 node from the [LEAP Hand API](https://github.com/leap-hand/LEAP_Hand_API).
+- Run ```ros2 run leap_hand leaphand_node.py``` for flat position.
 
 <p align="center">
   <img width="320" height="180" src="./readme_media/drill1.gif">
