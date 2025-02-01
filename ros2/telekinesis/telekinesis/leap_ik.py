@@ -170,7 +170,7 @@ class LeapPybulletIK(Node):
         basePosition = [0.25, 0.25, 0]
 
         self.linkStateBall = []
-        for i in range(0, 6):
+        for i in range(8):
             self.linkStateBall.append(p.createMultiBody(baseMass=baseMass, baseCollisionShapeIndex=ball_shape,
                                                         basePosition=basePosition))  # for base and finger tip joints
             no_collision_group = 0
@@ -225,8 +225,8 @@ class LeapPybulletIK(Node):
 
     def update_linkState_ball(self):
         """Update where the upper palm should be"""
-        link_array = p.getLinkStates(bodyUniqueId=self.LeapId, linkIndices=[LINK_MAP["dip"], LINK_MAP["dip_2"], LINK_MAP["dip_3"],
-                                                                            LINK_MAP["fingertip"], LINK_MAP["fingertip_2"], LINK_MAP["fingertip_3"]])
+        link_array = p.getLinkStates(bodyUniqueId=self.LeapId, linkIndices=[LINK_MAP["thumb_dip"], LINK_MAP["dip"], LINK_MAP["dip_2"], LINK_MAP["dip_3"],
+                                                                            LINK_MAP["thumb_fingertip"], LINK_MAP["fingertip"], LINK_MAP["fingertip_2"], LINK_MAP["fingertip_3"]])
         # print("len link_array: ", len(link_array))
         for i, link_info in enumerate(link_array):
             w_pos = np.array(link_info[0])
@@ -301,10 +301,11 @@ class LeapPybulletIK(Node):
             pip_scale * palm_poses[4][:3, 0]
         ring_poses[0][:3, 3] = palm_poses[5][:3, 3] + \
             pip_scale * palm_poses[5][:3, 0]
-        # No y directional change
-        index_poses[0][1, 3] = palm_poses[3][1, 3]
-        middle_poses[0][1, 3] = palm_poses[4][1, 3]
-        ring_poses[0][1, 3] = palm_poses[5][1, 3]
+
+        # # No y directional change
+        # index_poses[0][1, 3] = palm_poses[3][1, 3]
+        # middle_poses[0][1, 3] = palm_poses[4][1, 3]
+        # ring_poses[0][1, 3] = palm_poses[5][1, 3]
 
         # Calculate index dip 8 from pip 7
         dip_scale = 0.04
@@ -344,14 +345,6 @@ class LeapPybulletIK(Node):
         new_t = new_oTs[:, :3, 3]
         return new_t
 
-        for i in range(len(JOINT_GROUP)):
-            o_T_i = oTs[i]
-            # Scale the linear components
-            scaled_t = GLOVE_to_LEAP_FACTOR * o_T_i[0:3, 3]
-            # scaled_t += (self.position_offset)
-            leap_pos.append(scaled_t)
-        return leap_pos
-
     def lin_scale_ee(self, oTs: np.ndarray, scale: float):
         """
         Scale the linear components of the end effector poses by the GLOVE_to_LEAP_FACTOR.
@@ -370,39 +363,42 @@ class LeapPybulletIK(Node):
     def compute_IK(self, leap_pos):
         p.stepSimulation()
 
-        Thumb_middle_pos = leap_pos[THUMB_IDX[1]]
+        Thumb_middle_pos = leap_pos[THUMB_IDX[2]]
         Thumb_pos = leap_pos[THUMB_IDX[3]]
         # print("thumb_pos: ", Thumb_pos)
 
-        Index_middle_pos = leap_pos[INDEX_IDX[0]]
+        Index_middle_pos = leap_pos[INDEX_IDX[1]]
         Index_pos = leap_pos[INDEX_IDX[2]]
         # print("index_pos: ", Index_pos)
 
-        Middle_middle_pos = leap_pos[MIDDLE_IDX[0]]
+        Middle_middle_pos = leap_pos[MIDDLE_IDX[1]]
         Middle_pos = leap_pos[MIDDLE_IDX[2]]
         # print("middle_pos: ", Middle_pos)
 
-        Ring_middle_pos = leap_pos[RING_IDX[0]]
+        Ring_middle_pos = leap_pos[RING_IDX[1]]
         Ring_pos = leap_pos[RING_IDX[2]]
         # print("ring_pos: ", Ring_pos)
 
-        leapEndEffectorPos = [
-            Thumb_middle_pos,
-            Thumb_pos,
-            Index_middle_pos,
-            Index_pos,
-            Middle_middle_pos,
-            Middle_pos,
-            Ring_middle_pos,
-            Ring_pos,
-        ]
+        IK_Mode = "default"
 
-        leapEndEffectorPos = [
-            Thumb_pos,
-            Index_pos,
-            Middle_pos,
-            Ring_pos,
-        ]
+        if IK_Mode == "default":
+            leapEndEffectorPos = [
+                Thumb_middle_pos,
+                Thumb_pos,
+                Index_middle_pos,
+                Index_pos,
+                Middle_middle_pos,
+                Middle_pos,
+                Ring_middle_pos,
+                Ring_pos,
+            ]
+        else:
+            leapEndEffectorPos = [
+                Thumb_pos,
+                Index_pos,
+                Middle_pos,
+                Ring_pos,
+            ]
 
         """
         targetPositions: target position of the end effector 
@@ -410,9 +406,15 @@ class LeapPybulletIK(Node):
         By default this is in Cartesian world space, 
         unless you provide currentPosition joint angles.
         """
+
+        if IK_Mode == "default":
+            ee_link_indices = self.LEAP_EE_URDF_INDEX
+        else:
+            ee_link_indices = self.LEAP_EE_URDF_FINGERTIP
+
         jointPoses = p.calculateInverseKinematics2(
             bodyUniqueId=self.LeapId,
-            endEffectorLinkIndices=self.LEAP_EE_URDF_FINGERTIP,
+            endEffectorLinkIndices=ee_link_indices,
             targetPositions=leapEndEffectorPos,
             solver=p.IK_DLS,
             maxNumIterations=50,
