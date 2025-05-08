@@ -1,3 +1,5 @@
+## Manus has now released an official version of this library on their [website](https://docs.manus-meta.com/3.0.0/Plugins/SDK/ROS2/getting%20started/)!
+
 ## Unofficial Python or ROS2 library for Manus Meta Gloves
 
 While [Manus Meta](https://www.manus-meta.com/) natively supports [C++ SDK](https://docs.manus-meta.com/2.4.0/Plugins/SDK/), there is no Python or ROS2 bindings or retargeting code to robot hands such as LEAP Hand.  
