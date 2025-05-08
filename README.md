@@ -1,5 +1,3 @@
-## Manus has now released an official version of this library on their [website](https://docs.manus-meta.com/3.0.0/Plugins/SDK/ROS2/getting%20started/)!
-
 ## Unofficial Python or ROS2 library for Manus Meta Gloves
 
 While [Manus Meta](https://www.manus-meta.com/) natively supports [C++ SDK](https://docs.manus-meta.com/2.4.0/Plugins/SDK/), there is no Python or ROS2 bindings or retargeting code to robot hands such as LEAP Hand.  
@@ -84,6 +82,9 @@ Now to run the SDK:
 - Run our MANUS SDK, then connect and power your LEAP Hand and then run: `python LEAP_Hand_example.py`
 - If successful, the LEAP Hand will come to life similar to our conference demo as seen on the bottom of [https://leaphand.com/](https://leaphand.com/)
 - Note that this does not match the pinch grasps between the two hands but instead copies joint angles directly from the MANUS skeleton to LEAP Hand for simplicity.  The thumb will never be that good using this mode due to the differing kinematics of the two hands.
+
+
+## Manus has now released an official version of the ROS2 library on their [website](https://docs.manus-meta.com/3.0.0/Plugins/SDK/ROS2/getting%20started/)!
 
 # ROS2 + LEAP Hand Retargeting Setup
 It is useful to retarget the glove data to robot hands to perform similar fingertip grasping between the two hands.
