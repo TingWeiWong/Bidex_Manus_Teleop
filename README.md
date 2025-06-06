@@ -83,6 +83,9 @@ Now to run the SDK:
 - If successful, the LEAP Hand will come to life similar to our conference demo as seen on the bottom of [https://leaphand.com/](https://leaphand.com/)
 - Note that this does not match the pinch grasps between the two hands but instead copies joint angles directly from the MANUS skeleton to LEAP Hand for simplicity.  The thumb will never be that good using this mode due to the differing kinematics of the two hands.
 
+
+## Manus has now released an official version of the ROS2 library on their [website](https://docs.manus-meta.com/3.0.0/Plugins/SDK/ROS2/getting%20started/)!
+
 # ROS2 + LEAP Hand Retargeting Setup
 It is useful to retarget the glove data to robot hands to perform similar fingertip grasping between the two hands.
 - Inspired by [Robotic Telekinesis](https://robotic-telekinesis.github.io/) and [Dexcap](https://dex-cap.github.io/), this code retargets and solves for robot joint angles that matches the pinch grasps between the human and robot hands.
